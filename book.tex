@@ -1,0 +1,153 @@
+\documentclass[12pt]{book}
+\usepackage[T1]{fontenc}
+\usepackage{times}
+\usepackage{listings}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{imakeidx}
+\usepackage{booktabs}
+\usepackage{url}
+\usepackage{etoolbox}  % for showidx
+\usepackage{fullpage}
+\usepackage{soul}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning}
+
+\usepackage{hyperref}  % should be last
+\hypersetup{
+  pdfborder={0 0 0}
+}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+
+\lstdefinestyle{mystyle}{
+    commentstyle=\color{codegreen},
+    keywordstyle=\bfseries\color{magenta},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    showstringspaces=false,
+    xleftmargin=0.5cm
+}
+\lstset{style=mystyle}
+
+% Syntax highlighting for OctaC source: keywords (magenta, bold),
+% line comments (green), no background shading.
+\lstset{
+    morekeywords={function, return, if, else, for, in, until, do, and, or,
+                  not, is, true, false, i32, i64, f32, f64, bool, i32mat,
+                  f32mat, i32vec, f32vec, boolmat},
+    morecomment=[l]{//},
+    morestring=[b]"
+}
+
+% One space after periods
+\frenchspacing
+
+\hypersetup{pdfauthor={Syed Taha, Muhammad Usman},
+            pdftitle={OctaC: A Language Specification},}
+
+\lstset{basicstyle=\small\ttfamily}
+\lstset{escapeinside={(*@}{@*)}}
+\lstset{xleftmargin=5.0ex}
+
+\newcommand{\github}{https://github.com/mit-pdos/xv6-riscv/blob/riscv/}
+
+\newcommand{\fileref}[1]{\small{\textcolor{red}{(#1)}}}
+\newcommand{\lineref}[2]{\small{\textcolor{red}{(#1:#2)}}}
+\newcommand{\linerefs}[3]{\small{\textcolor{red}{(#1:#2-#3)}}}
+
+\newcommand{\showfileref}[2]{\href{\github/#1}{\small{(\textcolor{blue}{#2})}}}
+\newcommand{\showlineref}[3]{\href{\github/#1\#L#2}{\small{(\textcolor{blue}{#3})}}}
+\newcommand{\showlinerefs}[5]{\href{\github/#1\#L#2-L#3}{\small\textcolor{blue}{(#4-#5)}}}
+
+\newcommand{\indextext}[1]{\textit{#1}\index{#1}}
+\newcommand{\indextextx}[1]{{#1}\index{#1}}
+\newcommand{\indexcode}[1]{\lstinline{#1}\index{#1@\lstinline{#1}}}
+
+%% editing markup
+\newcommand{\insertnote}[3]{\noindent\textcolor{#1}{\textbf{#2:} #3}}
+\newcommand{\note}[1]{\insertnote{blue}{NOTE}{#1}}
+
+% ------------------------------------------------------------
+% Inline code styling
+% ------------------------------------------------------------
+\usepackage[most]{tcolorbox}
+
+\tcbset{
+    myinlinecode/.style={
+        enhanced,
+        boxsep=0.3mm,
+        left=0.5mm,
+        right=0.5mm,
+        top=0.5mm,
+        bottom=0.5mm,
+        colback=gray!20, % background color
+        colframe=gray!20, % optional border color
+        arc=1mm,          % rounded corners
+        boxrule=0pt,    % border thickness
+        box align=base,   % aligns nicely with text
+        before skip=0pt,
+        after skip=0pt,
+        fontupper=\ttfamily % monospace font
+    }
+}
+
+% Command for easier usage
+\newtcbox{\code}{myinlinecode, tcbox raise=0pt, box align=base, on line}
+
+\title{\textbf{OctaC: A Language Specification}\\[0.3em]
+\large Designing a Hybrid Language for Numerical and Matrix Computation}
+\author{Syed Taha \and Muhammad Usman}
+
+\makeindex
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+\input{acks}
+\addcontentsline{toc}{chapter}{Foreword and acknowledgments}
+
+\input{preface}
+\addcontentsline{toc}{chapter}{Preface}
+
+%  Part 1: Language Design
+\part{Language Design}
+% \input{chp01-specification}
+
+% Future chapters are added here as the language and compiler develop.
+% \input{chp02-grammar}
+% \input{chp03-lexer}
+% \input{chp04-parser}
+% \input{chp05-semantic-analysis}
+% \input{chp06-code-generation}
+
+\input{conclusion}
+\addcontentsline{toc}{chapter}{Conclusion}
+
+{
+% The following prevents latex from splitting a bibliography entry with a page
+% break
+\interlinepenalty=10000
+% Since we're using natbib in numbers mode, we don't need plainnat,
+% which exists to feed authors and years back in to natbib.  As a
+% result, it complains about entries without years, which we don't
+% care about.
+%\bibliographystyle{plainnat}
+\bibliographystyle{plain}
+\nocite{*}
+\bibliography{bibliography}
+\addcontentsline{toc}{chapter}{Bibliography}
+}
+
+\printindex
+
+\end{document}

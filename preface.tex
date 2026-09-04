@@ -1,0 +1,35 @@
+\chapter*{Preface}
+
+OctaC is a statically typed, C-structured language for numerical and
+matrix computation. Dynamically typed languages like Octave let a
+programmer multiply two matrices of incompatible shapes without complaint
+until the operation actually runs. A statically typed language can catch
+that mistake before a single instruction executes, but only if the
+compiler is taught to treat shape, not just type, as a property of a value
+that can be checked at compile time. OctaC brings that discipline to a
+C-structured surface syntax, with scalar types (\code{i32}, \code{i64},
+\code{f32}, \code{f64}, \code{bool}) alongside their matrix and vector
+counterparts (\code{i32mat}, \code{f32mat}, \code{i32vec}, \code{f32vec},
+\code{boolmat}).
+
+This is a living book. It begins with the specification of OctaC as it
+stands today, and is meant to grow chapter by chapter as the compiler is
+built over time: the formal grammar, the lexer, the parser, the
+semantic analysis pass, and code generation will each be added as their own
+chapter once they exist. Chapter~1 is the specification as it currently
+stands.
+
+This book prioritizes clarity and feasibility over completeness. Where we
+simplify (omit a feature, restrict a rule, choose one semantic
+over another), we try to say so explicitly rather than let the omission
+speak for itself.
+
+We hope it serves as both a reference for the finished language and an
+honest record of the decisions, and trade-offs, behind it.
+
+\begin{lstlisting}[breaklines=true]
+function main() -> i32 {
+    printf("Hello, world!\n");
+    return 0;
+}
+\end{lstlisting}

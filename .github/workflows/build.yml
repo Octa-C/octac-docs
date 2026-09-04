@@ -1,0 +1,20 @@
+name: Build book
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.tex'
+      - '**/*.bib'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: texlive/texlive:latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: make all
+        run: make all
