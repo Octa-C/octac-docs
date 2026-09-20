@@ -113,8 +113,8 @@ that lexeme becomes is decided afterwards by a lookup, described in
 Section~\ref{sec:lexer-algorithm}. This keeps the automaton small: reserved
 words do not need a path of their own, because they have the same shape as
 identifiers. The subsections below describe the part of the automaton that
-handles each category of tokens, and each has its own diagram. All of them
-start from the same start state.
+handles each class of tokens, and each has its own diagram. The last
+subsection merges them into the one automaton that the lexer runs.
 
 \subsection{Character Classes}
 
@@ -122,37 +122,32 @@ The automaton does not look at individual characters. Each input byte is first
 mapped to one of 17 character classes, and the transition table has one
 column per class. The letters \code{e} and \code{E} have a class of their own
 because they can begin the exponent of a number, while everywhere else they
-behave like any other letter.
+behave like any other letter. Table~\ref{tab:classes} lists the classes.
 
-\begin{table}[tbp]
+\begin{table}[H]
 \centering
-\small
-\renewcommand{\arraystretch}{1.1}
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{300pt}@{}}
-\toprule
-\textbf{Class} & \textbf{Characters} \\
-\midrule
-\code{CC\_LETTER} & \code{a}--\code{z} and \code{A}--\code{Z}, except \code{e} and \code{E} \\
-\code{CC\_EXP} & \code{e}, \code{E} \\
-\code{CC\_DIGIT} & \code{0}--\code{9} \\
-\code{CC\_UNDERSCORE} & \code{\_} \\
-\code{CC\_WS} & space, tab, carriage return, form feed, vertical tab \\
-\code{CC\_NEWLINE} & newline \\
-\code{CC\_QUOTE} & \code{"} \\
-\code{CC\_DOT} & \code{.} \\
-\code{CC\_PLUS} & \code{+} \\
-\code{CC\_MINUS} & \code{-} \\
-\code{CC\_STAR} & \code{*} \\
-\code{CC\_SLASH} & \code{/} \\
-\code{CC\_LT} & \code{<} \\
-\code{CC\_GT} & \code{>} \\
-\code{CC\_EQ} & \code{=} \\
-\code{CC\_SIMPLE} & \code{\{ \} ( ) [ ] ; , : ' \%}, single characters that cannot be extended to a longer operator \\
-\code{CC\_OTHER} & any other character \\
-\bottomrule
+\footnotesize
+\begin{tabular}{@{}ll@{}}
+\code{LETTER} & \code{A-D} \code{F-Z} \code{a-d} \code{f-z} \\
+\code{EXP} & \code{E} \code{e} \\
+\code{DIGIT} & \code{0-9} \\
+\code{\_} & \code{\_} \\
+\code{WS} & \code{\symbol{92}t} \code{\symbol{92}v} \code{\symbol{92}f} \code{\symbol{92}r} \code{space} \\
+\code{NL} & \code{\symbol{92}n} \\
+\code{QUOTE} & \code{\symbol{34}} \\
+\code{DOT} & \code{.} \\
+\code{PLUS} & \code{+} \\
+\code{MINUS} & \code{-} \\
+\code{STAR} & \code{*} \\
+\code{SLASH} & \code{/} \\
+\code{LT} & \code{<} \\
+\code{GT} & \code{>} \\
+\code{EQ} & \code{=} \\
+\code{SIMPLE} & \code{\%} \code{\textquotesingle{}} \code{(} \code{)} \code{,} \code{:} \code{;} \code{[} \code{]} \code{\symbol{123}} \code{\symbol{125}} \\
+\code{OTHER} & any other character \\
 \end{tabular}
 \caption{Character classes of the lexer.}
-\label{tab:char-classes}
+\label{tab:classes}
 \end{table}
 
 \subsection{States}
@@ -162,9 +157,9 @@ accepting when it has an action, which says what the lexeme read so far
 produces. States without an action are only stepping stones towards a longer
 lexeme.
 
-\begin{table}[tbp]
+\begin{table}[H]
 \centering
-\small
+\footnotesize
 \renewcommand{\arraystretch}{1.1}
 \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{190pt}>{\raggedright\arraybackslash}p{130pt}@{}}
 \toprule
@@ -195,137 +190,432 @@ lexeme.
 \label{tab:dfa-states}
 \end{table}
 
-\subsection{Identifiers}
+\subsection{Identifiers, Keywords, and Type Names}
 
-A letter, including \code{e} and \code{E}, takes the automaton from the start
-state to \code{IDENT}, which then loops on letters, digits, and underscores.
-An underscore cannot start an identifier, so it has no transition out of the
-start state and is reported as a lexical error.
+An identifier has the pattern \code{[a-zA-Z][a-zA-Z0-9\_]*}: a letter followed
+by any number of letters, digits and underscores. The DFA has one accepting
+state, \code{IDENT}, and it emits \textless IDENTIFIER, value\textgreater.
+Keywords and type names have the same shape, so the DFA reads them as
+identifiers as well. After the DFA accepts, the lexer looks the lexeme up in
+Table~\ref{tab:lookup}. A lexeme that is in the table gets the keyword or type
+token given there in place of \textless IDENTIFIER, value\textgreater.
 
-\note{DFA diagram for identifiers. To be added.}
+An underscore cannot start an identifier, so it has no transition out of
+the start state and is reported as a lexical error.
 
-\subsection{Keywords and Datatypes}
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=\linewidth,max height=0.3\textheight}
+\begin{tikzpicture}[x=1in,y=1in,line width=0.4pt]
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (START) at (0.9,0.7) {START};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (IDENT) at (3.0,0.7) {IDENT};
+\draw[-{Triangle[length=4bp,width=3bp]}] (0.4,0.7) -- (START);
+\node[inner sep=0pt,align=left,anchor=west] (IDENT-out) at (3.6,0.7) {\textless{}IDENTIFIER, value\textgreater{}};
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{a-z} \code{A-Z}} (IDENT);
+\path[-{Triangle[length=4bp,width=3bp]}] (IDENT) edge[loop above,min distance=7mm] node[above,inner sep=1pt,align=center] {\code{a-z} \code{A-Z} \code{0-9} \code{\_}} (IDENT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (IDENT) to[bend left=0] (IDENT-out.west);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{DFA for identifiers, keywords, and type names.}
+\label{fig:dfa-ident}
+\end{figure}
 
-Keywords and type names are not separate paths through the automaton. A word
-such as \code{until} or \code{i32} is accepted in \code{IDENT} like any other
-identifier, and the keyword table then decides what it is. A word found in the
-table becomes the corresponding keyword or type token, and any other word
-becomes an identifier. Reserved words and identifiers therefore share one
-path.
-
-\note{DFA diagram for keywords and datatypes, showing the lookup that follows
-the accepting state. To be added.}
-
-\subsection{Integer Literals}
-
-A digit takes the automaton to \code{INT}, which loops on digits and is
-accepting. A digit followed by a letter other than \code{e} or \code{E} has no
-transition, so \code{12abc} is scanned as the integer \code{12} followed by
-the identifier \code{abc}.
-
-\note{DFA diagram for integer literals. To be added.}
-
-\subsection{Float Literals}
-
-From \code{INT}, a dot leads to \code{INT\_DOT}, and a digit after it leads to
-\code{FLOAT}, which also loops on digits. From either \code{INT} or
-\code{FLOAT}, an \code{e} or \code{E} leads to \code{EXP}. From there, a digit
-leads directly to \code{FLOAT\_EXP}, and a sign leads to \code{EXP\_SIGN},
-which needs a digit to reach \code{FLOAT\_EXP}.
-
-\code{INT\_DOT}, \code{EXP}, and \code{EXP\_SIGN} are not accepting. A partial
-literal such as \code{1.} or \code{1e+} is therefore not a number, and the
-lexer falls back to the longest number that was complete, as described in
-Section~\ref{sec:lexer-algorithm}. For the same reason, a float must have
-digits on both sides of the dot, so \code{1.} and \code{.5} are lexical
-errors.
-
-\note{DFA diagram for float literals. To be added.}
-
-\subsection{String Literals}
-
-An opening quote takes the automaton to \code{STR\_BODY}, which loops on every
-character except a quote and a newline. A closing quote leads to
-\code{STR\_END}, which is accepting. There are no escape sequences, and a
-string cannot span lines. A newline inside a string has no transition, so a
-string that is missing its closing quote never reaches an accepting state and
-is reported as an error.
-
-\note{DFA diagram for string literals. To be added.}
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{@{}ll@{}}
+\code{for} & \textless{}KW\_LOOPS\_FOR,\textgreater{} \\
+\code{do} & \textless{}KW\_LOOPS\_DO,\textgreater{} \\
+\code{until} & \textless{}KW\_LOOPS\_UNTIL,\textgreater{} \\
+\code{continue} & \textless{}KW\_LOOPS\_CONTINUE,\textgreater{} \\
+\code{function} & \textless{}KW\_FUNC\_FUNCTION,\textgreater{} \\
+\code{return} & \textless{}KW\_FUNC\_RETURN,\textgreater{} \\
+\code{if} & \textless{}KW\_CONDITIONAL\_IF,\textgreater{} \\
+\code{else} & \textless{}KW\_CONDITIONAL\_ELSE,\textgreater{} \\
+\code{elseif} & \textless{}KW\_CONDITIONAL\_ELSEIF,\textgreater{} \\
+\code{caseof} & \textless{}KW\_CONDITIONAL\_CASEOF,\textgreater{} \\
+\code{case} & \textless{}KW\_CONDITIONAL\_CASE,\textgreater{} \\
+\code{default} & \textless{}KW\_CONDITIONAL\_DEFAULT,\textgreater{} \\
+\code{and} & \textless{}KW\_WORDBASED\_LOGICREL\_OPS\_AND,\textgreater{} \\
+\code{or} & \textless{}KW\_WORDBASED\_LOGICREL\_OPS\_OR,\textgreater{} \\
+\code{not} & \textless{}KW\_WORDBASED\_LOGICREL\_OPS\_NOT,\textgreater{} \\
+\code{is} & \textless{}KW\_WORDBASED\_LOGICREL\_OPS\_IS,\textgreater{} \\
+\code{in} & \textless{}KW\_WORDBASED\_LOGICREL\_OPS\_IN,\textgreater{} \\
+\code{break} & \textless{}KW\_MISC\_BREAK,\textgreater{} \\
+\code{i64} \code{i32} \code{i16} \code{f64} \code{f32} \code{f16} \code{bool} & \textless{}DT\_SCALAR, value\textgreater{} \\
+\code{vector} & \textless{}DT\_VECTOR,\textgreater{} \\
+\code{matrix} & \textless{}DT\_MATRIX,\textgreater{} \\
+\code{string} & \textless{}DT\_STRING,\textgreater{} \\
+\end{tabular}
+\caption{Keywords and type names, and the tokens the lookup after IDENT gives them.}
+\label{tab:lookup}
+\end{table}
 
 \subsection{Punctuation}
 
-The characters \code{\{}, \code{\}}, \code{(}, \code{)}, \code{[}, \code{]},
-\code{;}, \code{,}, and \code{:} belong to \code{CC\_SIMPLE} and lead straight
-to \code{OP\_DONE}, since none of them can be extended. The arrow \code{->} is
-formed from \code{-}, which leads to \code{MINUS}, and a following \code{>}.
-The ellipsis \code{...} is formed from a dot, which leads to \code{DOT}, a
-second dot, which leads to \code{DOT\_DOT}, and a third dot, which leads to
-\code{OP\_DONE}. A lone dot, or two dots, never form a token.
+A punctuation token is one of the characters \code{\symbol{123}}
+\code{\symbol{125}} \code{(} \code{)} \code{[} \code{]} \code{;} \code{,}
+\code{:}, or \code{->}, or \code{...}. A single character goes from
+\code{START} straight to \code{OP\_DONE}. \code{->} goes through \code{MINUS},
+and \code{...} goes through \code{DOT} and \code{DOT\_DOT}. These three states
+are not accepting in this automaton, because \code{-} and \code{.} on their
+own are not punctuation. \code{OP\_DONE} is accepting, and
+Table~\ref{tab:punct} gives the token for each lexeme.
 
-\note{DFA diagram for punctuation. To be added.}
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{@{}ll@{}}
+\code{\symbol{123}} & \textless{}PUNCTUATION\_LBRACE,\textgreater{} \\
+\code{\symbol{125}} & \textless{}PUNCTUATION\_RBRACE,\textgreater{} \\
+\code{(} & \textless{}PUNCTUATION\_LPAREN,\textgreater{} \\
+\code{)} & \textless{}PUNCTUATION\_RPAREN,\textgreater{} \\
+\code{[} & \textless{}PUNCTUATION\_LBRACKET,\textgreater{} \\
+\code{]} & \textless{}PUNCTUATION\_RBRACKET,\textgreater{} \\
+\code{;} & \textless{}PUNCTUATION\_SEMICOLON,\textgreater{} \\
+\code{->} & \textless{}PUNCTUATION\_ARROW,\textgreater{} \\
+\code{,} & \textless{}PUNCTUATION\_COMMA,\textgreater{} \\
+\code{...} & \textless{}PUNCTUATION\_ELLIPSIS,\textgreater{} \\
+\code{:} & \textless{}PUNCTUATION\_COLON,\textgreater{} \\
+\end{tabular}
+\caption{Punctuation lexemes and the tokens they give.}
+\label{tab:punct}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=\linewidth,max height=0.4\textheight}
+\begin{tikzpicture}[x=1in,y=1in,line width=0.4pt]
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (START) at (0.8,2.4) {START};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (OP_DONE) at (4.3,2.4) {OP\_DONE};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (MINUS) at (2.3,0.9) {MINUS};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (DOT) at (2.1,3.9) {DOT};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (DOT_DOT) at (3.4,3.9) {DOT\_DOT};
+\draw[-{Triangle[length=4bp,width=3bp]}] (0.30000000000000004,2.4) -- (START);
+\node[inner sep=0pt,align=left,anchor=west] (OP_DONE-out) at (5.0,2.4) {Table~\ref{tab:punct}};
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{(} \code{)} \code{,} \code{:} \code{;} \code{[} \code{]} \code{\symbol{123}} \code{\symbol{125}}} (OP_DONE);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,below left,inner sep=1pt,align=center] {\code{-}} (MINUS);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,above left,inner sep=1pt,align=center] {\code{.}} (DOT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (MINUS) to[bend left=0] node[pos=0.5,above left,inner sep=1pt,align=center] {\code{>}} (OP_DONE);
+\draw[-{Triangle[length=4bp,width=3bp]}] (DOT) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{.}} (DOT_DOT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (DOT_DOT) to[bend left=0] node[pos=0.5,right,inner sep=1pt,align=center] {\code{.}} (OP_DONE);
+\draw[-{Triangle[length=4bp,width=3bp]}] (OP_DONE) to[bend left=0] (OP_DONE-out.west);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{DFA for punctuation.}
+\label{fig:dfa-punct}
+\end{figure}
 
 \subsection{Operators}
+\label{sec:ops}
 
-The automaton only decides how far an operator extends. The operator table
-then maps the lexeme to its token. Each group of operators below has its own
-diagram.
+The operators are \code{+} \code{-} \code{*} \code{/} \code{\%}
+\code{\textquotesingle{}}, the matrix operators \code{.*} and \code{./}, the
+comparisons \code{<} \code{>} \code{<=} \code{>=}, and the assignments
+\code{=} \code{+=} \code{-=} \code{*=} \code{/=}. \code{\%}
+\code{\textquotesingle{}} \code{=} go from \code{START} straight to
+\code{OP\_DONE}. \code{+} \code{*} \code{<} \code{>} go to \code{OP\_EQ},
+\code{-} to \code{MINUS} and \code{/} to \code{SLASH}. These three states are
+accepting, because each of those characters is an operator on its own, and
+they continue to \code{OP\_DONE} on \code{=}. \code{DOT} is not accepting,
+because \code{.} alone is not an operator. It continues to \code{OP\_DONE} on
+\code{*} or \code{/}. The state a lexeme ends in does not fix its token, so
+Table~\ref{tab:ops} gives the token for each lexeme.
 
-\subsubsection{Standard Operators}
+There is no symbolic operator for equality or inequality, since these are
+written with the words \code{is} and \code{is not}.
 
-The character \code{\%} leads straight to \code{OP\_DONE}. The characters
-\code{+} and \code{*} lead to \code{OP\_EQ}, the character \code{-} leads to
-\code{MINUS}, and the character \code{/} leads to \code{SLASH}. All three
-states are accepting, so each operator is complete on its own. The operator
-table maps \code{+} and \code{-} to the same plus and minus token, and
-\code{*}, \code{/}, and \code{\%} to the same multiplication, division, and
-modulo token.
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{@{}ll@{}}
+\code{+} \code{-} & \textless{}OPERATORS\_STANDARD\_PLUSMINUS, value\textgreater{} \\
+\code{*} \code{/} \code{\%} & \textless{}OPERATORS\_STANDARD\_STAR\_SLASH\_MOD, value\textgreater{} \\
+\code{\textquotesingle{}} & \textless{}OPERATORS\_MATRIX\_TRANSPOSE,\textgreater{} \\
+\code{.*} & \textless{}OPERATORS\_MATRIX\_DOT\_STAR,\textgreater{} \\
+\code{./} & \textless{}OPERATORS\_MATRIX\_DOT\_SLASH,\textgreater{} \\
+\code{<} & \textless{}OPERATORS\_RELATIONAL\_AND\_COMPARISON\_OPS\_LESS,\textgreater{} \\
+\code{>} & \textless{}OPERATORS\_RELATIONAL\_AND\_COMPARISON\_OPS\_GREATER,\textgreater{} \\
+\code{<=} & \textless{}OPERATORS\_RELATIONAL\_AND\_COMPARISON\_OPS\_LESS\_EQ,\textgreater{} \\
+\code{>=} & \textless{}OPERATORS\_RELATIONAL\_AND\_COMPARISON\_OPS\_GREATER\_EQ,\textgreater{} \\
+\code{=} \code{+=} \code{-=} \code{*=} \code{/=} & \textless{}OPERATORS\_ASSIGNMENT, value\textgreater{} \\
+\end{tabular}
+\caption{Operator lexemes and the tokens they give.}
+\label{tab:ops}
+\end{table}
 
-\note{DFA diagram for standard operators. To be added.}
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=\linewidth,max height=0.6\textheight}
+\begin{tikzpicture}[x=1in,y=1in,line width=0.4pt]
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (START) at (0.5,4.55) {START};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (OP_DONE) at (5.2,4.55) {OP\_DONE};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (MINUS) at (3.1,3.6) {MINUS};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (OP_EQ) at (3.1,6.2) {OP\_EQ};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (SLASH) at (3.1,2.9) {SLASH};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (DOT) at (3.1,5.5) {DOT};
+\draw[-{Triangle[length=4bp,width=3bp]}] (0.0,4.55) -- (START);
+\node[inner sep=0pt,align=left,anchor=west] (OP_DONE-out) at (5.9,4.55) {Table~\ref{tab:ops}};
+\node[inner sep=0pt,align=left,anchor=south] (MINUS-out) at (3.1,4.05) {Table~\ref{tab:ops}};
+\node[inner sep=0pt,align=left,anchor=west] (OP_EQ-out) at (3.65,6.2) {Table~\ref{tab:ops}};
+\node[inner sep=0pt,align=left,anchor=west] (SLASH-out) at (3.65,2.9) {Table~\ref{tab:ops}};
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{\%} \code{\textquotesingle{}} \code{=}} (OP_DONE);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,below left,inner sep=1pt,align=center] {\code{-}} (MINUS);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,above left,inner sep=1pt,align=center] {\code{*} \code{+} \code{<} \code{>}} (OP_EQ);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,below left,inner sep=1pt,align=center] {\code{/}} (SLASH);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,above left,inner sep=1pt,align=center] {\code{.}} (DOT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (MINUS) to[bend left=0] node[pos=0.5,above left,inner sep=1pt,align=center] {\code{=}} (OP_DONE);
+\draw[-{Triangle[length=4bp,width=3bp]}] (OP_EQ) to[bend left=0] node[pos=0.5,below left,inner sep=1pt,align=center] {\code{=}} (OP_DONE);
+\draw[-{Triangle[length=4bp,width=3bp]}] (SLASH) to[bend left=0] node[pos=0.5,above left,inner sep=1pt,align=center] {\code{=}} (OP_DONE);
+\draw[-{Triangle[length=4bp,width=3bp]}] (DOT) to[bend left=0] node[pos=0.5,below left,inner sep=1pt,align=center] {\code{*} \code{/}} (OP_DONE);
+\draw[-{Triangle[length=4bp,width=3bp]}] (OP_DONE) to[bend left=0] (OP_DONE-out.west);
+\draw[-{Triangle[length=4bp,width=3bp]}] (MINUS) to[bend left=0] (MINUS-out.south);
+\draw[-{Triangle[length=4bp,width=3bp]}] (OP_EQ) to[bend left=0] (OP_EQ-out.west);
+\draw[-{Triangle[length=4bp,width=3bp]}] (SLASH) to[bend left=0] (SLASH-out.west);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{DFA for operators.}
+\label{fig:dfa-ops}
+\end{figure}
 
-\subsubsection{Matrix Operators}
+\subsection{Constants}
 
-The transpose operator \code{'} belongs to \code{CC\_SIMPLE} and leads
-straight to \code{OP\_DONE}. The element wise operators are formed from a
-dot, which leads to \code{DOT}, and a following \code{*} or \code{/}, which
-lead to \code{OP\_DONE} and form \code{.*} and \code{./}.
+A constant is a bool constant, an int literal, a float literal or a string
+literal.
 
-\note{DFA diagram for matrix operators. To be added.}
+\begin{itemize}
+    \item bool constants: \code{0} \code{1}
+    \item int literal: \code{[0-9]+}
+    \item float literal: \code{[0-9]+\symbol{92}.[0-9]+} or
+    \code{[0-9]+(\symbol{92}.[0-9]+)?[eE][+-]?[0-9]+}
+    \item string literal: \code{\symbol{34}[\symbol{94}\symbol{34}\symbol{92}n]*\symbol{34}}
+\end{itemize}
 
-\subsubsection{Relational and Comparison Operators}
+Digits are read in \code{INT}. A dot followed by digits leads through
+\code{INT\_DOT} to \code{FLOAT}. An \code{e} or \code{E} after \code{INT} or
+\code{FLOAT} leads to \code{EXP}, an optional sign to \code{EXP\_SIGN}, and
+digits to \code{FLOAT\_EXP}. A quote starts \code{STR\_BODY}, which loops on
+every character except a newline or a quote, and the closing quote reaches
+\code{STR\_END}. \code{INT}, \code{FLOAT}, \code{FLOAT\_EXP} and
+\code{STR\_END} are accepting. The lexer emits \code{0} and \code{1} as int
+literals, so the bool constant is never emitted.
 
-The characters \code{<} and \code{>} lead to \code{OP\_EQ}, which is accepting
-and may take an \code{=} to form \code{<=} or \code{>=}. There is no
-symbolic operator for equality or inequality, since these are written with
-the words \code{is} and \code{is not}.
+\code{INT\_DOT}, \code{EXP}, and \code{EXP\_SIGN} are not accepting, so a
+partial literal such as \code{1.} or \code{1e+} is not a number, and the lexer
+falls back to the longest number that was complete, as described in
+Section~\ref{sec:lexer-algorithm}. A float must have digits on both sides of
+the dot, so \code{1.} and \code{.5} are lexical errors. A digit followed by a
+letter other than \code{e} or \code{E} has no transition, so \code{12abc} is
+read as the integer \code{12} followed by the identifier \code{abc}. There
+are no escape sequences in strings, and a string cannot span lines: a newline
+inside a string has no transition, so a string that is missing its closing
+quote never reaches an accepting state and is reported as an error.
 
-\note{DFA diagram for relational and comparison operators. To be added.}
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=\linewidth,max height=0.42\textheight}
+\begin{tikzpicture}[x=1in,y=1in,line width=0.4pt]
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (START) at (0.6,3.1) {START};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (INT) at (1.9,4.5) {INT};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (INT_DOT) at (3.5,4.5) {INT\_DOT};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (FLOAT) at (5.0,4.5) {FLOAT};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (EXP) at (4.3,3.1) {EXP};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (EXP_SIGN) at (3.1,1.9) {EXP\_SIGN};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (FLOAT_EXP) at (5.0,1.9) {FLOAT\_EXP};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (STR_BODY) at (1.9,0.9) {STR\_BODY};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (STR_END) at (4.1,0.9) {STR\_END};
+\draw[-{Triangle[length=4bp,width=3bp]}] (0.09999999999999998,3.1) -- (START);
+\node[inner sep=0pt,align=left,anchor=south] (INT-out) at (1.9,5.05) {\textless{}CONSTANTS\_INT\_LITERAL, value\textgreater{}};
+\node[inner sep=0pt,align=left,anchor=south] (FLOAT-out) at (5.0,5.05) {\textless{}CONSTANTS\_FLOAT\_LITERAL, value\textgreater{}};
+\node[inner sep=0pt,align=left,anchor=north west] (FLOAT_EXP-out) at (5.2,1.3) {\textless{}CONSTANTS\_FLOAT\_LITERAL, value\textgreater{}};
+\node[inner sep=0pt,align=left,anchor=north west] (STR_END-out) at (4.25,0.4) {\textless{}CONSTANTS\_STRING\_LITERAL, value\textgreater{}};
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,above left,inner sep=1pt,align=center] {\code{0-9}} (INT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,right,inner sep=1pt,align=center] {\code{\symbol{34}}} (STR_BODY);
+\path[-{Triangle[length=4bp,width=3bp]}] (INT) edge[loop left,min distance=7mm] node[left,inner sep=1pt,align=center] {\code{0-9}} (INT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (INT) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{.}} (INT_DOT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (INT) to[bend left=0] node[pos=0.55,below left,inner sep=1pt,align=center] {\code{E} \code{e}} (EXP);
+\draw[-{Triangle[length=4bp,width=3bp]}] (INT_DOT) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{0-9}} (FLOAT);
+\path[-{Triangle[length=4bp,width=3bp]}] (FLOAT) edge[loop right,min distance=7mm] node[right,inner sep=1pt,align=center] {\code{0-9}} (FLOAT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (FLOAT) to[bend left=0] node[pos=0.5,right,inner sep=1pt,align=center] {\code{E} \code{e}} (EXP);
+\draw[-{Triangle[length=4bp,width=3bp]}] (EXP) to[bend left=0] node[pos=0.5,below right,inner sep=1pt,align=center] {\code{+} \code{-}} (EXP_SIGN);
+\draw[-{Triangle[length=4bp,width=3bp]}] (EXP) to[bend left=0] node[pos=0.5,right,inner sep=1pt,align=center] {\code{0-9}} (FLOAT_EXP);
+\draw[-{Triangle[length=4bp,width=3bp]}] (EXP_SIGN) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{0-9}} (FLOAT_EXP);
+\path[-{Triangle[length=4bp,width=3bp]}] (FLOAT_EXP) edge[loop right,min distance=7mm] node[right,inner sep=1pt,align=center] {\code{0-9}} (FLOAT_EXP);
+\path[-{Triangle[length=4bp,width=3bp]}] (STR_BODY) edge[loop below,min distance=7mm] node[below,inner sep=1pt,align=center] {\code{any except \symbol{92}n \symbol{34}}} (STR_BODY);
+\draw[-{Triangle[length=4bp,width=3bp]}] (STR_BODY) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{\symbol{34}}} (STR_END);
+\draw[-{Triangle[length=4bp,width=3bp]}] (INT) to[bend left=0] (INT-out.south);
+\draw[-{Triangle[length=4bp,width=3bp]}] (FLOAT) to[bend left=0] (FLOAT-out.south);
+\draw[-{Triangle[length=4bp,width=3bp]}] (FLOAT_EXP) to[bend left=0] (FLOAT_EXP-out.north west);
+\draw[-{Triangle[length=4bp,width=3bp]}] (STR_END) to[bend left=0] (STR_END-out.north west);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{DFA for constants.}
+\label{fig:dfa-const}
+\end{figure}
 
-\subsubsection{Assignment Operators}
+\subsection{Compiler Tokens}
 
-The character \code{=} leads straight to \code{OP\_DONE}. The compound forms
-are formed by extending an arithmetic operator with an \code{=}: \code{+=} and
-\code{*=} from \code{OP\_EQ}, \code{-=} from \code{MINUS}, and \code{/=} from
-\code{SLASH}. The operator table maps each of the five to the same assignment
-token, and the lexeme is kept as its value.
+The end of the input emits \textless COMPILER\_EOF,\textgreater. The scanner
+checks for the end of the input before it runs the DFA, so the code has no
+state for it, and the transition goes straight from the start state to the
+token. When the next character has no transition and no accepting state was passed, the DFA is in
+\code{DEAD}, the error state of the code, and the text read so far is emitted
+as \textless COMPILER\_ERROR,\textgreater.
 
-\note{DFA diagram for assignment operators. To be added.}
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=\linewidth,max height=0.25\textheight}
+\begin{tikzpicture}[x=1in,y=1in,line width=0.4pt]
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (START) at (0.9,1.8) {START};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (DEAD) at (3.0,0.6) {DEAD};
+\draw[-{Triangle[length=4bp,width=3bp]}] (0.4,1.8) -- (START);
+\node[inner sep=0pt,align=left,anchor=west] (eof-out) at (3.4,1.8) {\textless{}COMPILER\_EOF,\textgreater{}};
+\node[inner sep=0pt,align=left,anchor=west] (DEAD-out) at (3.4,0.6) {\textless{}COMPILER\_ERROR,\textgreater{}};
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{end of input}} (eof-out.west);
+\draw[-{Triangle[length=4bp,width=3bp]}] (DEAD) to[bend left=0] (DEAD-out.west);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{DFA for the compiler tokens.}
+\label{fig:dfa-compiler}
+\end{figure}
 
-\subsection{Whitespace and Comments}
+\subsection{Skipped Input}
 
-Whitespace and newlines lead to \code{WS}, which loops on further whitespace.
-Two slashes lead through \code{SLASH} to \code{COMMENT}, which loops on every
-character up to, but not including, the newline. Both states are accepting,
-but their action is to skip: the lexeme is discarded and no token is produced.
+Skipped input is whitespace and comments. Whitespace is a run of the \code{WS}
+and \code{NL} classes and stays in \code{WS}. A comment starts with \code{//}
+and runs up to, but not including, the next newline, staying in
+\code{COMMENT}. \code{WS} and \code{COMMENT} are accepting but emit no token.
+\code{SLASH} is not accepting in this automaton, because a single \code{/} is
+not skipped input: it is the division operator of Section~\ref{sec:ops}.
 
-\note{DFA diagram for whitespace and comments. To be added.}
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=\linewidth,max height=0.35\textheight}
+\begin{tikzpicture}[x=1in,y=1in,line width=0.4pt]
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (START) at (0.9,1.6) {START};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (SLASH) at (2.2,0.7) {SLASH};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (COMMENT) at (4.2,0.7) {COMMENT};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (WS) at (3.0,2.5) {WS};
+\draw[-{Triangle[length=4bp,width=3bp]}] (0.4,1.6) -- (START);
+\node[inner sep=0pt,align=left,anchor=west] (COMMENT-out) at (4.85,0.7) {no token};
+\node[inner sep=0pt,align=left,anchor=west] (WS-out) at (3.6,2.5) {no token};
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,below left,inner sep=1pt,align=center] {\code{/}} (SLASH);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,above left,inner sep=1pt,align=center] {\code{WS} \code{NL}} (WS);
+\draw[-{Triangle[length=4bp,width=3bp]}] (SLASH) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{/}} (COMMENT);
+\path[-{Triangle[length=4bp,width=3bp]}] (COMMENT) edge[loop above,min distance=7mm] node[above,inner sep=1pt,align=center] {\code{any except \symbol{92}n}} (COMMENT);
+\path[-{Triangle[length=4bp,width=3bp]}] (WS) edge[loop above,min distance=7mm] node[above,inner sep=1pt,align=center] {\code{WS} \code{NL}} (WS);
+\draw[-{Triangle[length=4bp,width=3bp]}] (COMMENT) to[bend left=0] (COMMENT-out.west);
+\draw[-{Triangle[length=4bp,width=3bp]}] (WS) to[bend left=0] (WS-out.west);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{DFA for whitespace and comments.}
+\label{fig:dfa-skip}
+\end{figure}
 
-\subsection{The Combined DFA}
+\subsection{The Merged DFA}
 
-The automata above share the start state, and together they form the single
-automaton that the lexer runs.
+The classes are merged into one DFA, the one the lexer runs. Its states carry the
+names the source gives them.
 
-\note{Diagram of the combined DFA. To be added.}
+\begin{enumerate}
+    \item A new start state has a transition for the first character of
+    every class.
+    \item Classes that share a prefix share states. Keywords, type names
+    and identifiers are all read in IDENT, and operators and punctuation
+    end in OP\_DONE, MINUS, OP\_EQ, SLASH, DOT and DOT\_DOT.
+    \item A state that is accepting for one class stays accepting in the
+    merged DFA, so MINUS and SLASH are accepting here.
+    \item IDENT emits \textless IDENTIFIER, value\textgreater, which
+    Table~\ref{tab:lookup} replaces when the lexeme is a keyword or type
+    name. OP\_EQ and OP\_DONE emit different tokens depending on the
+    lexeme. The arrow from each of them names the tables that list them.
+    \item The DFA runs until the next character has no transition. The
+    token of the last accepting state passed is emitted, and if none was
+    passed the consumed text is a \textless COMPILER\_ERROR,\textgreater{}
+    token. DEAD is not drawn: every missing transition leads to it.
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\begin{adjustbox}{max width=\linewidth,max height=0.85\textheight}
+\begin{tikzpicture}[x=1in,y=1in,line width=0.4pt]
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (START) at (0.6,7.1) {START};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (IDENT) at (2.5,10.4) {IDENT};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (INT) at (2.5,2.8) {INT};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (INT_DOT) at (4.0,2.8) {INT\_DOT};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (FLOAT) at (5.5,2.8) {FLOAT};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (EXP) at (4.9,2.0) {EXP};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (EXP_SIGN) at (3.6,1.2000000000000002) {EXP\_SIGN};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (FLOAT_EXP) at (5.4,1.2000000000000002) {FLOAT\_EXP};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (OP_DONE) at (4.9,7.1) {OP\_DONE};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (MINUS) at (2.5,6.1) {MINUS};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (OP_EQ) at (2.5,8.0) {OP\_EQ};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (SLASH) at (2.5,5.1) {SLASH};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (COMMENT) at (2.5,4.1) {COMMENT};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (DOT) at (2.5,9.100000000000001) {DOT};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (DOT_DOT) at (4.0,9.55) {DOT\_DOT};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in] (STR_BODY) at (2.5,11.700000000000001) {STR\_BODY};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (STR_END) at (4.6,11.700000000000001) {STR\_END};
+\node[draw,circle,fill=white,inner sep=1pt,minimum size=0.42in,double,double distance=1.3pt] (WS) at (2.5,13.0) {WS};
+\draw[-{Triangle[length=4bp,width=3bp]}] (0.09999999999999998,7.1) -- (START);
+\node[inner sep=0pt,align=left,anchor=west] (IDENT-out) at (3.15,10.4) {\textless{}IDENTIFIER, value\textgreater{}};
+\node[inner sep=0pt,align=left,anchor=north] (INT-out) at (1.6,2.3) {\textless{}CONSTANTS\_INT\_LITERAL, value\textgreater{}};
+\node[inner sep=0pt,align=left,anchor=south] (FLOAT-out) at (5.5,3.3499999999999996) {\textless{}CONSTANTS\_FLOAT\_LITERAL, value\textgreater{}};
+\node[inner sep=0pt,align=left,anchor=north] (FLOAT_EXP-out) at (5.4,0.65) {\textless{}CONSTANTS\_FLOAT\_LITERAL, value\textgreater{}};
+\node[inner sep=0pt,align=left,anchor=west] (OP_DONE-out) at (5.35,7.1) {Tables~\ref{tab:punct} and~\ref{tab:ops}};
+\node[inner sep=0pt,align=left,anchor=north] (MINUS-out) at (2.5,5.7) {\textless{}OPERATORS\_STANDARD\_PLUSMINUS, value\textgreater{}};
+\node[inner sep=0pt,align=left,anchor=south] (OP_EQ-out) at (2.5,8.35) {Table~\ref{tab:ops}};
+\node[inner sep=0pt,align=left,anchor=west] (SLASH-out) at (2.9,4.75) {\textless{}OPERATORS\_STANDARD\_STAR\_SLASH\_MOD, value\textgreater{}};
+\node[inner sep=0pt,align=left,anchor=west] (COMMENT-out) at (3.1,4.1) {no token};
+\node[inner sep=0pt,align=left,anchor=north] (STR_END-out) at (4.6,11.25) {\textless{}CONSTANTS\_STRING\_LITERAL, value\textgreater{}};
+\node[inner sep=0pt,align=left,anchor=west] (WS-out) at (3.1,13.0) {no token};
+\draw[-{Triangle[length=4bp,width=3bp]}] (IDENT) to[bend left=0] (IDENT-out.west);
+\draw[-{Triangle[length=4bp,width=3bp]}] (INT) to[bend left=0] (INT-out.north);
+\draw[-{Triangle[length=4bp,width=3bp]}] (FLOAT) to[bend left=0] (FLOAT-out.south);
+\draw[-{Triangle[length=4bp,width=3bp]}] (FLOAT_EXP) to[bend left=0] (FLOAT_EXP-out.north);
+\draw[-{Triangle[length=4bp,width=3bp]}] (OP_DONE) to[bend left=0] (OP_DONE-out.west);
+\draw[-{Triangle[length=4bp,width=3bp]}] (MINUS) to[bend left=0] (MINUS-out.north);
+\draw[-{Triangle[length=4bp,width=3bp]}] (OP_EQ) to[bend left=0] (OP_EQ-out.south);
+\draw[-{Triangle[length=4bp,width=3bp]}] (SLASH) to[bend left=0] (SLASH-out.west);
+\draw[-{Triangle[length=4bp,width=3bp]}] (COMMENT) to[bend left=0] (COMMENT-out.west);
+\draw[-{Triangle[length=4bp,width=3bp]}] (STR_END) to[bend left=0] (STR_END-out.north);
+\draw[-{Triangle[length=4bp,width=3bp]}] (WS) to[bend left=0] (WS-out.west);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) |- node[pos=0.817,above,inner sep=1pt,align=center] {\code{LETTER} \code{EXP}} (IDENT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) |- node[pos=0.847,above,inner sep=1pt,align=center] {\code{DIGIT}} (INT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{EQ} \code{SIMPLE}} (OP_DONE);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) |- node[pos=0.672,above,inner sep=1pt,align=center] {\code{MINUS}} (MINUS);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) |- node[pos=0.661,above,inner sep=1pt,align=center] {\code{PLUS} \code{STAR} \code{LT} \code{GT}} (OP_EQ);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) |- node[pos=0.756,above,inner sep=1pt,align=center] {\code{SLASH}} (SLASH);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) |- node[pos=0.756,above,inner sep=1pt,align=center] {\code{DOT}} (DOT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) |- node[pos=0.854,above,inner sep=1pt,align=center] {\code{QUOTE}} (STR_BODY);
+\draw[-{Triangle[length=4bp,width=3bp]}] (START) |- node[pos=0.878,above,inner sep=1pt,align=center] {\code{WS} \code{NL}} (WS);
+\path[-{Triangle[length=4bp,width=3bp]}] (IDENT) edge[loop above,min distance=7mm] node[above,inner sep=1pt,align=center] {\code{LETTER} \code{EXP} \code{DIGIT} \code{\_}} (IDENT);
+\path[-{Triangle[length=4bp,width=3bp]}] (INT) edge[loop above,min distance=7mm] node[above,inner sep=1pt,align=center] {\code{DIGIT}} (INT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (INT) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{DOT}} (INT_DOT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (INT) to[bend left=0] node[pos=0.5,below left,inner sep=1pt,align=center] {\code{EXP}} (EXP);
+\draw[-{Triangle[length=4bp,width=3bp]}] (INT_DOT) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{DIGIT}} (FLOAT);
+\path[-{Triangle[length=4bp,width=3bp]}] (FLOAT) edge[loop right,min distance=7mm] node[right,inner sep=1pt,align=center] {\code{DIGIT}} (FLOAT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (FLOAT) to[bend left=0] node[pos=0.5,right,inner sep=1pt,align=center] {\code{EXP}} (EXP);
+\draw[-{Triangle[length=4bp,width=3bp]}] (EXP) to[bend left=0] node[pos=0.5,above left,inner sep=1pt,align=center] {\code{PLUS} \code{MINUS}} (EXP_SIGN);
+\draw[-{Triangle[length=4bp,width=3bp]}] (EXP) to[bend left=0] node[pos=0.5,right,inner sep=1pt,align=center] {\code{DIGIT}} (FLOAT_EXP);
+\draw[-{Triangle[length=4bp,width=3bp]}] (EXP_SIGN) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{DIGIT}} (FLOAT_EXP);
+\path[-{Triangle[length=4bp,width=3bp]}] (FLOAT_EXP) edge[loop right,min distance=7mm] node[right,inner sep=1pt,align=center] {\code{DIGIT}} (FLOAT_EXP);
+\draw[-{Triangle[length=4bp,width=3bp]}] (MINUS) -| node[pos=0.353,above,inner sep=1pt,align=center] {\code{GT} \code{EQ}} (OP_DONE);
+\draw[-{Triangle[length=4bp,width=3bp]}] (OP_EQ) -| node[pos=0.364,above,inner sep=1pt,align=center] {\code{EQ}} (OP_DONE);
+\draw[-{Triangle[length=4bp,width=3bp]}] (SLASH) -| node[pos=0.273,above,inner sep=1pt,align=center] {\code{EQ}} (OP_DONE);
+\draw[-{Triangle[length=4bp,width=3bp]}] (SLASH) to[bend left=0] node[pos=0.5,left,inner sep=1pt,align=center] {\code{SLASH}} (COMMENT);
+\path[-{Triangle[length=4bp,width=3bp]}] (COMMENT) edge[loop left,min distance=7mm] node[left,inner sep=1pt,align=center] {\code{any except NL}} (COMMENT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (DOT) -| node[pos=0.273,below,inner sep=1pt,align=center] {\code{STAR} \code{SLASH}} (OP_DONE);
+\draw[-{Triangle[length=4bp,width=3bp]}] (DOT) to[bend left=0] node[pos=0.5,above left,inner sep=1pt,align=center] {\code{DOT}} (DOT_DOT);
+\draw[-{Triangle[length=4bp,width=3bp]}] (DOT_DOT) -| node[pos=0.134,above,inner sep=1pt,align=center] {\code{DOT}} (OP_DONE);
+\path[-{Triangle[length=4bp,width=3bp]}] (STR_BODY) edge[loop above,min distance=7mm] node[above,inner sep=1pt,align=center] {\code{any except NL QUOTE}} (STR_BODY);
+\draw[-{Triangle[length=4bp,width=3bp]}] (STR_BODY) to[bend left=0] node[pos=0.5,above,inner sep=1pt,align=center] {\code{QUOTE}} (STR_END);
+\path[-{Triangle[length=4bp,width=3bp]}] (WS) edge[loop above,min distance=7mm] node[above,inner sep=1pt,align=center] {\code{WS} \code{NL}} (WS);
+\end{tikzpicture}
+\end{adjustbox}
+\caption{The merged DFA of the lexer.}
+\label{fig:dfa-merged}
+\end{figure}
 
 \section{The Lexical Analyzer Algorithm}
 \label{sec:lexer-algorithm}
@@ -463,7 +753,8 @@ with an empty value part, for example \code{<PUNCTUATION\_LBRACE,>}.
 
 To see the algorithm at work, we run the lexer on three statements. For each
 lexeme, the tables list the states the automaton visits, starting from
-\code{START}, and the token that comes out. The whitespace between lexemes
+\code{START}, followed by the lookup that names the lexeme when there is one,
+and ending in the token that comes out. The whitespace between lexemes
 takes the automaton through \code{WS}, which is skipped, so it does not appear
 in the tables. After the last lexeme of the input, the lexer returns the end of
 file token, \code{<COMPILER\_EOF,>}, which is also left out.
@@ -479,15 +770,16 @@ i32 count = 10;
 \begin{center}
 \footnotesize
 \renewcommand{\arraystretch}{1.1}
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{160pt}>{\raggedright\arraybackslash}p{190pt}@{}}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{370pt}@{}}
 \toprule
-\textbf{Lexeme} & \textbf{States visited} & \textbf{Token} \\
+\textbf{Lexeme} & \textbf{States visited, lookup, and token} \\
 \midrule
-\code{i32} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} & \tok{<DT_SCALAR, i32>} \\
-\code{count} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} & \tok{<IDENTIFIER, count>} \\
-\code{=} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<OPERATORS_ASSIGNMENT, =>} \\
-\code{10} & \tok{START} $\to$ \tok{INT} $\to$ \tok{INT} & \tok{<CONSTANTS_INT_LITERAL, 10>} \\
-\code{;} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<PUNCTUATION_SEMICOLON,>} \\
+\code{i32} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ lookup(keyword table) $\to$ \tok{<DT_SCALAR, i32>} \\
+\code{count} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ lookup(keyword table) $\to$ \tok{<IDENTIFIER, count>} \\
+\code{=} & \tok{START} $\to$ \tok{OP_DONE} $\to$ lookup(operator table) $\to$ \tok{<OPERATORS_ASSIGNMENT, =>} \\
+\code{10} & \tok{START} $\to$ \tok{INT} $\to$ \tok{INT} $\to$ \tok{<CONSTANTS_INT_LITERAL, 10>} \\
+\code{;} & \tok{START} $\to$ \tok{OP_DONE} $\to$ lookup(operator table) $\to$ \tok{<PUNCTUATION_SEMICOLON,>} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -506,19 +798,20 @@ f32 y = 2.5e-3 + a.*b;
 \begin{center}
 \footnotesize
 \renewcommand{\arraystretch}{1.1}
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{160pt}>{\raggedright\arraybackslash}p{190pt}@{}}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{370pt}@{}}
 \toprule
-\textbf{Lexeme} & \textbf{States visited} & \textbf{Token} \\
+\textbf{Lexeme} & \textbf{States visited, lookup, and token} \\
 \midrule
-\code{f32} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} & \tok{<DT_SCALAR, f32>} \\
-\code{y} & \tok{START} $\to$ \tok{IDENT} & \tok{<IDENTIFIER, y>} \\
-\code{=} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<OPERATORS_ASSIGNMENT, =>} \\
-\code{2.5e-3} & \tok{START} $\to$ \tok{INT} $\to$ \tok{INT_DOT} $\to$ \tok{FLOAT} $\to$ \tok{EXP} $\to$ \tok{EXP_SIGN} $\to$ \tok{FLOAT_EXP} & \tok{<CONSTANTS_FLOAT_LITERAL, 2.5e-3>} \\
-\code{+} & \tok{START} $\to$ \tok{OP_EQ} & \tok{<OPERATORS_STANDARD_PLUSMINUS, +>} \\
-\code{a} & \tok{START} $\to$ \tok{IDENT} & \tok{<IDENTIFIER, a>} \\
-\code{.*} & \tok{START} $\to$ \tok{DOT} $\to$ \tok{OP_DONE} & \tok{<OPERATORS_MATRIX_DOT_STAR,>} \\
-\code{b} & \tok{START} $\to$ \tok{IDENT} & \tok{<IDENTIFIER, b>} \\
-\code{;} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<PUNCTUATION_SEMICOLON,>} \\
+\code{f32} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ lookup(keyword table) $\to$ \tok{<DT_SCALAR, f32>} \\
+\code{y} & \tok{START} $\to$ \tok{IDENT} $\to$ lookup(keyword table) $\to$ \tok{<IDENTIFIER, y>} \\
+\code{=} & \tok{START} $\to$ \tok{OP_DONE} $\to$ lookup(operator table) $\to$ \tok{<OPERATORS_ASSIGNMENT, =>} \\
+\code{2.5e-3} & \tok{START} $\to$ \tok{INT} $\to$ \tok{INT_DOT} $\to$ \tok{FLOAT} $\to$ \tok{EXP} $\to$ \tok{EXP_SIGN} $\to$ \tok{FLOAT_EXP} $\to$ \tok{<CONSTANTS_FLOAT_LITERAL, 2.5e-3>} \\
+\code{+} & \tok{START} $\to$ \tok{OP_EQ} $\to$ lookup(operator table) $\to$ \tok{<OPERATORS_STANDARD_PLUSMINUS, +>} \\
+\code{a} & \tok{START} $\to$ \tok{IDENT} $\to$ lookup(keyword table) $\to$ \tok{<IDENTIFIER, a>} \\
+\code{.*} & \tok{START} $\to$ \tok{DOT} $\to$ \tok{OP_DONE} $\to$ lookup(operator table) $\to$ \tok{<OPERATORS_MATRIX_DOT_STAR,>} \\
+\code{b} & \tok{START} $\to$ \tok{IDENT} $\to$ lookup(keyword table) $\to$ \tok{<IDENTIFIER, b>} \\
+\code{;} & \tok{START} $\to$ \tok{OP_DONE} $\to$ lookup(operator table) $\to$ \tok{<PUNCTUATION_SEMICOLON,>} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -537,20 +830,21 @@ for (i32 i = 1...5) {
 \begin{center}
 \footnotesize
 \renewcommand{\arraystretch}{1.1}
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{160pt}>{\raggedright\arraybackslash}p{190pt}@{}}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{370pt}@{}}
 \toprule
-\textbf{Lexeme} & \textbf{States visited} & \textbf{Token} \\
+\textbf{Lexeme} & \textbf{States visited, lookup, and token} \\
 \midrule
-\code{for} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} & \tok{<KW_LOOPS_FOR,>} \\
-\code{(} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<PUNCTUATION_LPAREN,>} \\
-\code{i32} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} & \tok{<DT_SCALAR, i32>} \\
-\code{i} & \tok{START} $\to$ \tok{IDENT} & \tok{<IDENTIFIER, i>} \\
-\code{=} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<OPERATORS_ASSIGNMENT, =>} \\
-\code{1} & \tok{START} $\to$ \tok{INT} $\to$ \tok{INT_DOT} \textit{(no move on the next dot, rewind to \tok{INT})} & \tok{<CONSTANTS_INT_LITERAL, 1>} \\
-\code{...} & \tok{START} $\to$ \tok{DOT} $\to$ \tok{DOT_DOT} $\to$ \tok{OP_DONE} & \tok{<PUNCTUATION_ELLIPSIS,>} \\
-\code{5} & \tok{START} $\to$ \tok{INT} & \tok{<CONSTANTS_INT_LITERAL, 5>} \\
-\code{)} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<PUNCTUATION_RPAREN,>} \\
-\code{\{} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<PUNCTUATION_LBRACE,>} \\
+\code{for} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ lookup(keyword table) $\to$ \tok{<KW_LOOPS_FOR,>} \\
+\code{(} & \tok{START} $\to$ \tok{OP_DONE} $\to$ lookup(operator table) $\to$ \tok{<PUNCTUATION_LPAREN,>} \\
+\code{i32} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ lookup(keyword table) $\to$ \tok{<DT_SCALAR, i32>} \\
+\code{i} & \tok{START} $\to$ \tok{IDENT} $\to$ lookup(keyword table) $\to$ \tok{<IDENTIFIER, i>} \\
+\code{=} & \tok{START} $\to$ \tok{OP_DONE} $\to$ lookup(operator table) $\to$ \tok{<OPERATORS_ASSIGNMENT, =>} \\
+\code{1} & \tok{START} $\to$ \tok{INT} $\to$ \tok{INT_DOT} \textit{(no move on the next dot, rewind to \tok{INT})} $\to$ \tok{<CONSTANTS_INT_LITERAL, 1>} \\
+\code{...} & \tok{START} $\to$ \tok{DOT} $\to$ \tok{DOT_DOT} $\to$ \tok{OP_DONE} $\to$ lookup(operator table) $\to$ \tok{<PUNCTUATION_ELLIPSIS,>} \\
+\code{5} & \tok{START} $\to$ \tok{INT} $\to$ \tok{<CONSTANTS_INT_LITERAL, 5>} \\
+\code{)} & \tok{START} $\to$ \tok{OP_DONE} $\to$ lookup(operator table) $\to$ \tok{<PUNCTUATION_RPAREN,>} \\
+\code{\{} & \tok{START} $\to$ \tok{OP_DONE} $\to$ lookup(operator table) $\to$ \tok{<PUNCTUATION_LBRACE,>} \\
 \bottomrule
 \end{tabular}
 \end{center}
