@@ -1,0 +1,662 @@
+% p1-chp02-lexer.tex
+
+\chapter{Lexical Analysis and the Lexer}
+\label{chp:lexer}
+
+The lexical analyzer, or lexer, is the first phase of the compiler. It reads
+the source program as a stream of characters and groups them into tokens,
+the units that the parser works with \cite{aho2006compilers}. This chapter
+defines the full token specification of OctaC, the deterministic finite
+automata that recognize those tokens
+\cite{aho2006compilers,hopcroft2006automata}, and the algorithm the lexer
+uses to drive them. The source code of the lexer is available at:
+\url{https://github.com/Octa-C/lexer}
+
+\section{Token Specification}
+
+This section lists the complete token set for the lexical analyzer, in
+Table~\ref{tab:token-set}. Every token belongs to a category, and some are
+divided further into a subcategory. The loop keywords \code{for}, \code{do},
+\code{until}, and \code{continue}, for example, belong to the Keyword category
+and the Loops subcategory. The Token column gives the token as it is written
+in the source, or a descriptive name where one token covers several lexemes.
+The Values column is filled only for those tokens that match more than one
+lexeme, or a pattern, such as the scalar datatypes or the integer literals,
+and lists the lexemes or the regular expression they match. The last column
+gives the generated name of the token, built from its category, subcategory,
+and token in the form \code{CATEGORY\_SUBCATEGORY\_TOKEN}, which is the name
+used to identify the token from here on.
+
+The logical and equality operators are written as English words, so they are
+listed among the keywords rather than the operators. The two compiler tokens,
+EOF and Error, do not correspond to any source text and are produced by the
+lexer itself.
+
+\begin{table}[tbp]
+\centering
+\fontsize{6.2}{7.2}\selectfont
+\renewcommand{\arraystretch}{1.1}
+\setlength{\tabcolsep}{2pt}
+\begin{tabular}{@{}ll@{\hspace{6pt}}ll@{\hspace{6pt}}l@{}}
+\toprule
+\textbf{Category} & \textbf{Subcategory} & \textbf{Token} & \textbf{Values} & \textbf{Generated token} \\
+\midrule
+Keyword & Loops & \texttt{for} &  & \tok{KW_LOOPS_FOR} \\
+Keyword & Loops & \texttt{do} &  & \tok{KW_LOOPS_DO} \\
+Keyword & Loops & \texttt{until} &  & \tok{KW_LOOPS_UNTIL} \\
+Keyword & Loops & \texttt{continue} &  & \tok{KW_LOOPS_CONTINUE} \\
+Keyword & Function & \texttt{function} &  & \tok{KW_FUNC_FUNCTION} \\
+Keyword & Function & \texttt{return} &  & \tok{KW_FUNC_RETURN} \\
+Keyword & Conditional & \texttt{if} &  & \tok{KW_CONDITIONAL_IF} \\
+Keyword & Conditional & \texttt{else} &  & \tok{KW_CONDITIONAL_ELSE} \\
+Keyword & Conditional & \texttt{elseif} &  & \tok{KW_CONDITIONAL_ELSEIF} \\
+Keyword & Conditional & \texttt{caseof} &  & \tok{KW_CONDITIONAL_CASEOF} \\
+Keyword & Conditional & \texttt{case} &  & \tok{KW_CONDITIONAL_CASE} \\
+Keyword & Conditional & \texttt{default} &  & \tok{KW_CONDITIONAL_DEFAULT} \\
+Keyword & Word-based Logic/Rel Ops & \texttt{and} &  & \tok{KW_WORDBASED_LOGICREL_OPS_AND} \\
+Keyword & Word-based Logic/Rel Ops & \texttt{or} &  & \tok{KW_WORDBASED_LOGICREL_OPS_OR} \\
+Keyword & Word-based Logic/Rel Ops & \texttt{not} &  & \tok{KW_WORDBASED_LOGICREL_OPS_NOT} \\
+Keyword & Word-based Logic/Rel Ops & \texttt{is} &  & \tok{KW_WORDBASED_LOGICREL_OPS_IS} \\
+Keyword & Word-based Logic/Rel Ops & \texttt{in} &  & \tok{KW_WORDBASED_LOGICREL_OPS_IN} \\
+Keyword & Misc & \texttt{break} &  & \tok{KW_MISC_BREAK} \\
+\midrule
+Datatype &  & Scalar & \texttt{i64}, \texttt{i32}, \texttt{i16}, \texttt{f64}, \texttt{f32}, \texttt{f16}, \texttt{bool} & \tok{DT_SCALAR} \\
+Datatype &  & \texttt{vector} &  & \tok{DT_VECTOR} \\
+Datatype &  & \texttt{matrix} &  & \tok{DT_MATRIX} \\
+Datatype &  & \texttt{string} &  & \tok{DT_STRING} \\
+\midrule
+Punctuation &  & \texttt{\{} &  & \tok{PUNCTUATION_LBRACE} \\
+Punctuation &  & \texttt{\}} &  & \tok{PUNCTUATION_RBRACE} \\
+Punctuation &  & \texttt{(} &  & \tok{PUNCTUATION_LPAREN} \\
+Punctuation &  & \texttt{)} &  & \tok{PUNCTUATION_RPAREN} \\
+Punctuation &  & \texttt{[} &  & \tok{PUNCTUATION_LBRACKET} \\
+Punctuation &  & \texttt{]} &  & \tok{PUNCTUATION_RBRACKET} \\
+Punctuation &  & \texttt{;} &  & \tok{PUNCTUATION_SEMICOLON} \\
+Punctuation &  & \texttt{->} &  & \tok{PUNCTUATION_ARROW} \\
+Punctuation &  & \texttt{,} &  & \tok{PUNCTUATION_COMMA} \\
+Punctuation &  & \texttt{...} &  & \tok{PUNCTUATION_ELLIPSIS} \\
+Punctuation &  & \texttt{:} &  & \tok{PUNCTUATION_COLON} \\
+\midrule
+Operators & Standard & \texttt{+-} & \texttt{+}, \texttt{-} & \tok{OPERATORS_STANDARD_PLUSMINUS} \\
+Operators & Standard & \texttt{* / \%} & \texttt{*}, \texttt{/}, \texttt{\%} & \tok{OPERATORS_STANDARD_STAR_SLASH_MOD} \\
+Operators & Matrix & \texttt{'} &  & \tok{OPERATORS_MATRIX_TRANSPOSE} \\
+Operators & Matrix & \texttt{.*} &  & \tok{OPERATORS_MATRIX_DOT_STAR} \\
+Operators & Matrix & \texttt{./} &  & \tok{OPERATORS_MATRIX_DOT_SLASH} \\
+Operators & Relational and Comparison Ops & \texttt{<} &  & \tok{OPERATORS_RELATIONAL_AND_COMPARISON_OPS_LESS} \\
+Operators & Relational and Comparison Ops & \texttt{>} &  & \tok{OPERATORS_RELATIONAL_AND_COMPARISON_OPS_GREATER} \\
+Operators & Relational and Comparison Ops & \texttt{<=} &  & \tok{OPERATORS_RELATIONAL_AND_COMPARISON_OPS_LESS_EQ} \\
+Operators & Relational and Comparison Ops & \texttt{>=} &  & \tok{OPERATORS_RELATIONAL_AND_COMPARISON_OPS_GREATER_EQ} \\
+Operators & Assignment &  & \texttt{=}, \texttt{+=}, \texttt{-=}, \texttt{*=}, \texttt{/=} & \tok{OPERATORS_ASSIGNMENT} \\
+\midrule
+Identifier &  & identifier & \texttt{[a-zA-Z][a-zA-Z0-9\_]*} & \tok{IDENTIFIER} \\
+\midrule
+Constants &  & bool constant & \texttt{1}, \texttt{0} & \tok{CONSTANTS_BOOL_CONSTANT} \\
+Constants &  & int literal & \texttt{[0-9]+} & \tok{CONSTANTS_INT_LITERAL} \\
+Constants &  & float literal & \begin{tabular}[t]{@{}l@{}}\texttt{[0-9]+\textbackslash .[0-9]+}\\ \texttt{[0-9]+(\textbackslash .[0-9]+)?[eE][+-]?[0-9]+}\end{tabular} & \tok{CONSTANTS_FLOAT_LITERAL} \\
+Constants &  & string literal & \texttt{"[\textasciicircum "\textbackslash n]*"} & \tok{CONSTANTS_STRING_LITERAL} \\
+\midrule
+Compiler &  & EOF &  & \tok{COMPILER_EOF} \\
+Compiler &  & Error &  & \tok{COMPILER_ERROR} \\
+\bottomrule
+\end{tabular}
+\caption{The OctaC token set.}
+\label{tab:token-set}
+\end{table}
+
+\section{Deterministic Finite Automata}
+
+The lexer recognizes every token of OctaC with a single deterministic finite
+automaton, driven by a transition table
+\cite{aho2006compilers,hopcroft2006automata}. The automaton only recognizes
+the shape of a lexeme, such as a word, a number, or an operator. Which token
+that lexeme becomes is decided afterwards by a lookup, described in
+Section~\ref{sec:lexer-algorithm}. This keeps the automaton small: reserved
+words do not need a path of their own, because they have the same shape as
+identifiers. The subsections below describe the part of the automaton that
+handles each category of tokens, and each has its own diagram. All of them
+start from the same start state.
+
+\subsection{Character Classes}
+
+The automaton does not look at individual characters. Each input byte is first
+mapped to one of 17 character classes, and the transition table has one
+column per class. The letters \code{e} and \code{E} have a class of their own
+because they can begin the exponent of a number, while everywhere else they
+behave like any other letter.
+
+\begin{table}[tbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{300pt}@{}}
+\toprule
+\textbf{Class} & \textbf{Characters} \\
+\midrule
+\code{CC\_LETTER} & \code{a}--\code{z} and \code{A}--\code{Z}, except \code{e} and \code{E} \\
+\code{CC\_EXP} & \code{e}, \code{E} \\
+\code{CC\_DIGIT} & \code{0}--\code{9} \\
+\code{CC\_UNDERSCORE} & \code{\_} \\
+\code{CC\_WS} & space, tab, carriage return, form feed, vertical tab \\
+\code{CC\_NEWLINE} & newline \\
+\code{CC\_QUOTE} & \code{"} \\
+\code{CC\_DOT} & \code{.} \\
+\code{CC\_PLUS} & \code{+} \\
+\code{CC\_MINUS} & \code{-} \\
+\code{CC\_STAR} & \code{*} \\
+\code{CC\_SLASH} & \code{/} \\
+\code{CC\_LT} & \code{<} \\
+\code{CC\_GT} & \code{>} \\
+\code{CC\_EQ} & \code{=} \\
+\code{CC\_SIMPLE} & \code{\{ \} ( ) [ ] ; , : ' \%}, single characters that cannot be extended to a longer operator \\
+\code{CC\_OTHER} & any other character \\
+\bottomrule
+\end{tabular}
+\caption{Character classes of the lexer.}
+\label{tab:char-classes}
+\end{table}
+
+\subsection{States}
+
+The automaton has 19 states, listed in Table~\ref{tab:dfa-states}. A state is
+accepting when it has an action, which says what the lexeme read so far
+produces. States without an action are only stepping stones towards a longer
+lexeme.
+
+\begin{table}[tbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{190pt}>{\raggedright\arraybackslash}p{130pt}@{}}
+\toprule
+\textbf{State} & \textbf{Reached after reading} & \textbf{Action} \\
+\midrule
+\code{DEAD} & no valid continuation exists (error state) & none \\
+\code{START} & nothing yet & none \\
+\code{IDENT} & \code{[a-zA-Z][a-zA-Z0-9\_]*} & keyword lookup, else identifier \\
+\code{INT} & \code{[0-9]+} & integer literal \\
+\code{INT\_DOT} & an integer and a dot, such as \code{12.} & none \\
+\code{FLOAT} & \code{[0-9]+\textbackslash .[0-9]+} & float literal \\
+\code{EXP} & a number and \code{e} or \code{E} & none \\
+\code{EXP\_SIGN} & a number, \code{e} or \code{E}, and a sign & none \\
+\code{FLOAT\_EXP} & a number with a complete exponent & float literal \\
+\code{OP\_DONE} & an operator or punctuator that cannot be extended, such as \code{\{}, \code{->}, \code{<=}, \code{...}, \code{.*} or \code{=} & operator lookup \\
+\code{MINUS} & \code{-}, which may extend to \code{->} or \code{-=} & operator lookup \\
+\code{OP\_EQ} & \code{<}, \code{>}, \code{+} or \code{*}, which may extend with \code{=} & operator lookup \\
+\code{SLASH} & \code{/}, which may extend to \code{/=} or begin a comment & operator lookup \\
+\code{COMMENT} & \code{//} and the rest of the line & skip \\
+\code{DOT} & \code{.}, waiting for \code{*}, \code{/} or another \code{.} & none \\
+\code{DOT\_DOT} & \code{..}, waiting for a third \code{.} & none \\
+\code{STR\_BODY} & an opening quote and the text after it & none \\
+\code{STR\_END} & a complete string literal & string literal \\
+\code{WS} & a run of whitespace & skip \\
+\bottomrule
+\end{tabular}
+\caption{States of the lexer DFA.}
+\label{tab:dfa-states}
+\end{table}
+
+\subsection{Identifiers}
+
+A letter, including \code{e} and \code{E}, takes the automaton from the start
+state to \code{IDENT}, which then loops on letters, digits, and underscores.
+An underscore cannot start an identifier, so it has no transition out of the
+start state and is reported as a lexical error.
+
+\note{DFA diagram for identifiers. To be added.}
+
+\subsection{Keywords and Datatypes}
+
+Keywords and type names are not separate paths through the automaton. A word
+such as \code{until} or \code{i32} is accepted in \code{IDENT} like any other
+identifier, and the keyword table then decides what it is. A word found in the
+table becomes the corresponding keyword or type token, and any other word
+becomes an identifier. Reserved words and identifiers therefore share one
+path.
+
+\note{DFA diagram for keywords and datatypes, showing the lookup that follows
+the accepting state. To be added.}
+
+\subsection{Integer Literals}
+
+A digit takes the automaton to \code{INT}, which loops on digits and is
+accepting. A digit followed by a letter other than \code{e} or \code{E} has no
+transition, so \code{12abc} is scanned as the integer \code{12} followed by
+the identifier \code{abc}.
+
+\note{DFA diagram for integer literals. To be added.}
+
+\subsection{Float Literals}
+
+From \code{INT}, a dot leads to \code{INT\_DOT}, and a digit after it leads to
+\code{FLOAT}, which also loops on digits. From either \code{INT} or
+\code{FLOAT}, an \code{e} or \code{E} leads to \code{EXP}. From there, a digit
+leads directly to \code{FLOAT\_EXP}, and a sign leads to \code{EXP\_SIGN},
+which needs a digit to reach \code{FLOAT\_EXP}.
+
+\code{INT\_DOT}, \code{EXP}, and \code{EXP\_SIGN} are not accepting. A partial
+literal such as \code{1.} or \code{1e+} is therefore not a number, and the
+lexer falls back to the longest number that was complete, as described in
+Section~\ref{sec:lexer-algorithm}. For the same reason, a float must have
+digits on both sides of the dot, so \code{1.} and \code{.5} are lexical
+errors.
+
+\note{DFA diagram for float literals. To be added.}
+
+\subsection{String Literals}
+
+An opening quote takes the automaton to \code{STR\_BODY}, which loops on every
+character except a quote and a newline. A closing quote leads to
+\code{STR\_END}, which is accepting. There are no escape sequences, and a
+string cannot span lines. A newline inside a string has no transition, so a
+string that is missing its closing quote never reaches an accepting state and
+is reported as an error.
+
+\note{DFA diagram for string literals. To be added.}
+
+\subsection{Punctuation}
+
+The characters \code{\{}, \code{\}}, \code{(}, \code{)}, \code{[}, \code{]},
+\code{;}, \code{,}, and \code{:} belong to \code{CC\_SIMPLE} and lead straight
+to \code{OP\_DONE}, since none of them can be extended. The arrow \code{->} is
+formed from \code{-}, which leads to \code{MINUS}, and a following \code{>}.
+The ellipsis \code{...} is formed from a dot, which leads to \code{DOT}, a
+second dot, which leads to \code{DOT\_DOT}, and a third dot, which leads to
+\code{OP\_DONE}. A lone dot, or two dots, never form a token.
+
+\note{DFA diagram for punctuation. To be added.}
+
+\subsection{Operators}
+
+The automaton only decides how far an operator extends. The operator table
+then maps the lexeme to its token. Each group of operators below has its own
+diagram.
+
+\subsubsection{Standard Operators}
+
+The character \code{\%} leads straight to \code{OP\_DONE}. The characters
+\code{+} and \code{*} lead to \code{OP\_EQ}, the character \code{-} leads to
+\code{MINUS}, and the character \code{/} leads to \code{SLASH}. All three
+states are accepting, so each operator is complete on its own. The operator
+table maps \code{+} and \code{-} to the same plus and minus token, and
+\code{*}, \code{/}, and \code{\%} to the same multiplication, division, and
+modulo token.
+
+\note{DFA diagram for standard operators. To be added.}
+
+\subsubsection{Matrix Operators}
+
+The transpose operator \code{'} belongs to \code{CC\_SIMPLE} and leads
+straight to \code{OP\_DONE}. The element wise operators are formed from a
+dot, which leads to \code{DOT}, and a following \code{*} or \code{/}, which
+lead to \code{OP\_DONE} and form \code{.*} and \code{./}.
+
+\note{DFA diagram for matrix operators. To be added.}
+
+\subsubsection{Relational and Comparison Operators}
+
+The characters \code{<} and \code{>} lead to \code{OP\_EQ}, which is accepting
+and may take an \code{=} to form \code{<=} or \code{>=}. There is no
+symbolic operator for equality or inequality, since these are written with
+the words \code{is} and \code{is not}.
+
+\note{DFA diagram for relational and comparison operators. To be added.}
+
+\subsubsection{Assignment Operators}
+
+The character \code{=} leads straight to \code{OP\_DONE}. The compound forms
+are formed by extending an arithmetic operator with an \code{=}: \code{+=} and
+\code{*=} from \code{OP\_EQ}, \code{-=} from \code{MINUS}, and \code{/=} from
+\code{SLASH}. The operator table maps each of the five to the same assignment
+token, and the lexeme is kept as its value.
+
+\note{DFA diagram for assignment operators. To be added.}
+
+\subsection{Whitespace and Comments}
+
+Whitespace and newlines lead to \code{WS}, which loops on further whitespace.
+Two slashes lead through \code{SLASH} to \code{COMMENT}, which loops on every
+character up to, but not including, the newline. Both states are accepting,
+but their action is to skip: the lexeme is discarded and no token is produced.
+
+\note{DFA diagram for whitespace and comments. To be added.}
+
+\subsection{The Combined DFA}
+
+The automata above share the start state, and together they form the single
+automaton that the lexer runs.
+
+\note{Diagram of the combined DFA. To be added.}
+
+\section{The Lexical Analyzer Algorithm}
+\label{sec:lexer-algorithm}
+
+The scanner exposes a single operation, \code{next}, which returns the next
+token each time it is called. It keeps the source text, the current position,
+and the current line and column, both counted from 1. The reference
+implementation is a C++ program.
+
+\subsection{Maximal Munch}
+
+Each call to \code{next} starts at the current position and walks the
+transition table for as long as a transition exists. Whenever it enters an
+accepting state it records that state and the position reached. When it
+reaches the dead state, or the end of the input, it rewinds to the last
+recorded position. This is the longest match rule: the lexer always takes the
+longest prefix that forms a token \cite{aho2006compilers}. The rewinding is
+what allows one automaton to handle lexemes that share a prefix.
+
+The text \code{0...2} shows this. The lexer reads \code{0}, which is accepting,
+and then a dot, which moves to \code{INT\_DOT}. The next dot has no transition
+from \code{INT\_DOT}, so the lexer rewinds to the \code{0} and emits it as an
+integer literal. Scanning resumes at the first dot, which reaches
+\code{OP\_DONE} after three dots and emits the ellipsis, and then \code{2} is
+scanned on its own. In the same way, \code{1e+;} is scanned as the integer
+\code{1}, the identifier \code{e}, and the operator \code{+}, because
+\code{EXP} and \code{EXP\_SIGN} are not accepting.
+
+\subsection{The Scanning Loop}
+
+Listing~\ref{lst:scan-loop} shows the body of \code{next}. The character class
+mapping is written \code{classOf}, and \code{advance} moves the position
+forward while updating the line and column. The two lookup tables described
+earlier are used through two functions. The function \code{lookupKeyword}
+handles words, and \code{lookupOperator} handles operators.
+
+\begin{lstlisting}[style=pseudocode, float=tbp,
+    caption={The scanning loop of the lexer.}, label=lst:scan-loop]
+function next():
+    loop:
+        if pos >= length(src):
+            return Token(COMPILER_EOF)
+
+        start <- pos
+        state <- START
+        lastAccept <- DEAD
+        lastEnd <- start
+        cur <- start
+
+        while cur < length(src):
+            nxt <- TRANSITION[state][classOf(src[cur])]
+            if nxt is DEAD: break
+            state <- nxt
+            cur <- cur + 1
+            if ACTION[state] is not NONE:
+                lastAccept <- state
+                lastEnd <- cur
+
+        if lastAccept is DEAD:
+            end <- start + 1 if cur = start else cur
+            lexeme <- src[start .. end)
+            advance(end - start)
+            return Token(COMPILER_ERROR, lexeme)
+
+        lexeme <- src[start .. lastEnd)
+        advance(lastEnd - start)
+
+        switch ACTION[lastAccept]:
+            WORD:    type <- lookupKeyword(lexeme)
+            INT:     type <- CONSTANTS_INT_LITERAL
+            FLOAT:   type <- CONSTANTS_FLOAT_LITERAL
+            OP:      type <- lookupOperator(lexeme)
+            STRING:  type <- CONSTANTS_STRING_LITERAL
+            SKIP:    continue    // scan again
+        return Token(type, lexeme)
+\end{lstlisting}
+
+Each token also records the line and column where it started, which are taken
+before the position moves.
+
+\subsection{Resolving the Token}
+
+The action of the last accepting state says how to name the lexeme. A word is
+looked up in the keyword table, which also holds the type names, and falls back
+to an identifier. An operator or punctuator is looked up in the operator
+table. Integer literals, float literals, and string literals are named
+directly by their state. Whitespace and comments are skipped, and the loop
+starts again from the new position, so \code{next} never returns them.
+
+The token set lists a bool constant token for the values \code{0} and
+\code{1}. The lexer does not produce it. Both values are scanned as integer
+literals, and interpreting them as booleans is left to the parser.
+
+\subsection{Errors}
+
+If the walk never reached an accepting state, the text it consumed becomes the
+lexeme of an error token, and at least one character is consumed so that
+scanning always makes progress. The lexer then reports the lexeme on the
+standard error stream together with its line and column, and scanning
+resumes right after it. One run therefore reports every lexical error in a
+file. Table~\ref{tab:lexer-errors} shows how some invalid inputs are reported.
+
+\begin{table}[tbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Input} & \textbf{Reported lexeme} \\
+\midrule
+\code{\_hidden} & \code{\_} \\
+\code{1.} & \code{.} \\
+\code{.5} & \code{.} \\
+\code{1.5.2} & \code{.} \\
+\code{3..4} & \code{..} \\
+\code{"unterminated} & \code{"unterminated} \\
+\code{!=} & \code{!} \\
+\code{a @ b} & \code{@} \\
+\bottomrule
+\end{tabular}
+\caption{Examples of lexical errors.}
+\label{tab:lexer-errors}
+\end{table}
+
+\subsection{Token Output}
+
+The lexer writes one token per line in the form \code{<TYPE, value>}, ending
+with the end of file token. Only some tokens have a value part: identifiers,
+scalar type names, integer, float, and string literals, the arithmetic
+operators, and the assignment operators. These are the tokens whose Values
+column is filled in Table~\ref{tab:token-set}. Every other token is written
+with an empty value part, for example \code{<PUNCTUATION\_LBRACE,>}.
+
+\subsection{Sample Runs}
+
+To see the algorithm at work, we run the lexer on three statements. For each
+lexeme, the tables list the states the automaton visits, starting from
+\code{START}, and the token that comes out. The whitespace between lexemes
+takes the automaton through \code{WS}, which is skipped, so it does not appear
+in the tables. After the last lexeme of the input, the lexer returns the end of
+file token, \code{<COMPILER\_EOF,>}, which is also left out.
+
+\medskip
+\noindent\begin{minipage}{\textwidth}
+\noindent\textbf{Statement 1.} The first statement declares a variable. Every lexeme is either a word, a number, or a single character.
+
+\begin{lstlisting}
+i32 count = 10;
+\end{lstlisting}
+
+\begin{center}
+\footnotesize
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{160pt}>{\raggedright\arraybackslash}p{190pt}@{}}
+\toprule
+\textbf{Lexeme} & \textbf{States visited} & \textbf{Token} \\
+\midrule
+\code{i32} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} & \tok{<DT_SCALAR, i32>} \\
+\code{count} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} & \tok{<IDENTIFIER, count>} \\
+\code{=} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<OPERATORS_ASSIGNMENT, =>} \\
+\code{10} & \tok{START} $\to$ \tok{INT} $\to$ \tok{INT} & \tok{<CONSTANTS_INT_LITERAL, 10>} \\
+\code{;} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<PUNCTUATION_SEMICOLON,>} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{minipage}
+\medskip
+
+
+\medskip
+\noindent\begin{minipage}{\textwidth}
+\noindent\textbf{Statement 2.} The second statement has a float with an exponent, and a matrix operator that is written without spaces around it.
+
+\begin{lstlisting}
+f32 y = 2.5e-3 + a.*b;
+\end{lstlisting}
+
+\begin{center}
+\footnotesize
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{160pt}>{\raggedright\arraybackslash}p{190pt}@{}}
+\toprule
+\textbf{Lexeme} & \textbf{States visited} & \textbf{Token} \\
+\midrule
+\code{f32} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} & \tok{<DT_SCALAR, f32>} \\
+\code{y} & \tok{START} $\to$ \tok{IDENT} & \tok{<IDENTIFIER, y>} \\
+\code{=} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<OPERATORS_ASSIGNMENT, =>} \\
+\code{2.5e-3} & \tok{START} $\to$ \tok{INT} $\to$ \tok{INT_DOT} $\to$ \tok{FLOAT} $\to$ \tok{EXP} $\to$ \tok{EXP_SIGN} $\to$ \tok{FLOAT_EXP} & \tok{<CONSTANTS_FLOAT_LITERAL, 2.5e-3>} \\
+\code{+} & \tok{START} $\to$ \tok{OP_EQ} & \tok{<OPERATORS_STANDARD_PLUSMINUS, +>} \\
+\code{a} & \tok{START} $\to$ \tok{IDENT} & \tok{<IDENTIFIER, a>} \\
+\code{.*} & \tok{START} $\to$ \tok{DOT} $\to$ \tok{OP_DONE} & \tok{<OPERATORS_MATRIX_DOT_STAR,>} \\
+\code{b} & \tok{START} $\to$ \tok{IDENT} & \tok{<IDENTIFIER, b>} \\
+\code{;} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<PUNCTUATION_SEMICOLON,>} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{minipage}
+\medskip
+
+
+\medskip
+\noindent\begin{minipage}{\textwidth}
+\noindent\textbf{Statement 3.} The third statement is the range loop, and the range \code{1...5} is the case where the lexer has to rewind.
+
+\begin{lstlisting}
+for (i32 i = 1...5) {
+\end{lstlisting}
+
+\begin{center}
+\footnotesize
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{160pt}>{\raggedright\arraybackslash}p{190pt}@{}}
+\toprule
+\textbf{Lexeme} & \textbf{States visited} & \textbf{Token} \\
+\midrule
+\code{for} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} & \tok{<KW_LOOPS_FOR,>} \\
+\code{(} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<PUNCTUATION_LPAREN,>} \\
+\code{i32} & \tok{START} $\to$ \tok{IDENT} $\to$ \tok{IDENT} $\to$ \tok{IDENT} & \tok{<DT_SCALAR, i32>} \\
+\code{i} & \tok{START} $\to$ \tok{IDENT} & \tok{<IDENTIFIER, i>} \\
+\code{=} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<OPERATORS_ASSIGNMENT, =>} \\
+\code{1} & \tok{START} $\to$ \tok{INT} $\to$ \tok{INT_DOT} \textit{(no move on the next dot, rewind to \tok{INT})} & \tok{<CONSTANTS_INT_LITERAL, 1>} \\
+\code{...} & \tok{START} $\to$ \tok{DOT} $\to$ \tok{DOT_DOT} $\to$ \tok{OP_DONE} & \tok{<PUNCTUATION_ELLIPSIS,>} \\
+\code{5} & \tok{START} $\to$ \tok{INT} & \tok{<CONSTANTS_INT_LITERAL, 5>} \\
+\code{)} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<PUNCTUATION_RPAREN,>} \\
+\code{\{} & \tok{START} $\to$ \tok{OP_DONE} & \tok{<PUNCTUATION_LBRACE,>} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{minipage}
+\medskip
+
+
+\medskip
+\noindent In the first two runs, every lexeme is accepted at the last state it reaches,
+and the lexer never has to go back. The word \code{i32} ends in \code{IDENT},
+and the keyword table turns it into a type token. The float \code{2.5e-3} is
+the longest path in the automaton, and it passes through three states that
+are not accepting. In the third run, the \code{1} is followed by a dot, which
+moves the automaton to \code{INT\_DOT}. The next character is another dot, which
+has no transition there, so the lexer goes back to the last accepting state,
+which was reached after the \code{1}, and returns the integer. The scan for the
+next token then starts at the first dot, and reads all three of them.
+
+\section{Lexers in the Real World}
+\label{sec:lexers-real-world}
+
+The lexer of OctaC is deliberately small. This section looks at how lexers
+are built in practice, what they handle that ours does not, and which
+simplifications we made.
+
+\subsection{Lexer Generators}
+
+Many lexers are produced by a generator such as Lex \cite{lesk1975lex} or its
+successor Flex \cite{flex-manual}. The programmer writes a list of regular
+expressions, each with an action. The generator converts them into a
+deterministic finite automaton and emits a table-driven scanner
+\cite{aho2006compilers}. Two rules resolve conflicts between patterns: the
+longest match wins, and among patterns that match the same length, the one
+listed first wins \cite{lesk1975lex,flex-manual}. Our scanner follows the
+longest match rule. The second rule is not needed, because keywords are not
+patterns of their own.
+
+Flex recommends matching identifiers with one pattern and looking keywords up
+in a table, instead of writing a pattern for each keyword
+\cite{flex-manual}, which is what OctaC does. Flex also warns that a scanner
+which has to back up over several characters is slower, and offers ways to
+find and remove such cases \cite{flex-manual}. Our scanner backs up too, as the
+run of \code{1...5} shows, but only over a few characters. Generators also
+compress their tables \cite{aho2006compilers}. Ours has 19 states and 17
+character classes, which is small enough to be stored as it is.
+
+\subsection{Hand-Written Lexers}
+
+Many production compilers do not use a generator. The lexer of the GNU C
+preprocessor is coded by hand and is not implemented as a state machine
+\cite{gcc-cppinternals}, and Clang has a hand-written lexer that scans the
+source buffer directly \cite{clang-internals}. A hand-written lexer gives full
+control over the speed of the scanner, the quality of error messages, and the
+handling of features that regular expressions describe poorly. The lexer of
+OctaC sits between the two approaches. The table is written by hand, but the
+scanning loop is the same one that a generator would emit.
+
+\subsection{What Real Lexers Handle}
+
+Lexers for established languages deal with many things that OctaC leaves out:
+
+\begin{itemize}
+    \item \textbf{Richer literals.} Numbers may be written in hexadecimal,
+    octal, or binary, with digit separators and type suffixes. Strings have
+    escape sequences, raw forms, and may span lines \cite{rust-reference}.
+    \item \textbf{More kinds of comments.} Block comments exist in many
+    languages, and in Rust they can be nested \cite{rust-reference}.
+    \item \textbf{Unicode.} Identifiers may contain letters from any script,
+    following the rules of Unicode Standard Annex 31
+    \cite{unicode-uax31,python-reference}.
+    \item \textbf{Layout.} Python's lexer produces indent and dedent tokens
+    from the indentation of each line \cite{python-reference}. The lexer of
+    Go inserts semicolons at the ends of lines by a fixed rule, so programs
+    can leave most of them out \cite{go-spec}.
+    \item \textbf{Preprocessing.} A C lexer works together with the
+    preprocessor, which handles macros and file inclusion
+    \cite{gcc-cppinternals}.
+\end{itemize}
+
+\subsection{Simplifications in OctaC}
+
+Table~\ref{tab:lexer-simplifications} summarizes the differences. Each of the
+simplifications keeps the automaton small, and each could be lifted later by
+adding states and character classes to the table.
+
+\begin{table}[tbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{62pt}>{\raggedright\arraybackslash}p{190pt}>{\raggedright\arraybackslash}p{180pt}@{}}
+\toprule
+\textbf{Concern} & \textbf{Real-world lexers} & \textbf{OctaC} \\
+\midrule
+Construction & Generated from regular expressions, or written by hand \cite{flex-manual,clang-internals} & One hand-written transition table \\
+Characters & Unicode text, usually as UTF-8 & Bytes; anything outside the listed classes is an error \\
+Identifiers & Unicode letters allowed \cite{unicode-uax31} & ASCII letters, digits, and underscores, starting with a letter \\
+Numbers & Hexadecimal, binary, separators, suffixes \cite{rust-reference} & Decimal integers and floats, with an optional exponent \\
+Strings & Escapes, raw strings, multiple lines \cite{rust-reference} & None of these: one line, no escapes \\
+Comments & Block comments, sometimes nested \cite{rust-reference} & Line comments with \code{//} only \\
+Layout & Indentation tokens, semicolon insertion \cite{python-reference,go-spec} & Whitespace is not significant, and semicolons are explicit \\
+Preprocessing & Macros and file inclusion \cite{gcc-cppinternals} & None \\
+Keywords & Table lookup after matching an identifier \cite{flex-manual} & Same \\
+Errors & Diagnostics with recovery & Error token, a diagnostic, and scanning resumes \\
+Input & Streamed through a buffer & The whole file is read into memory \\
+\bottomrule
+\end{tabular}
+\caption{Real-world lexers compared with the OctaC lexer.}
+\label{tab:lexer-simplifications}
+\end{table}

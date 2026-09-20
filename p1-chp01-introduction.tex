@@ -1,0 +1,281 @@
+% p1-chp01-introduction.tex
+
+\chapter{Introduction}
+\label{chp:introduction}
+
+OctaC is a small, statically typed language for numerical and matrix
+computation. Its purpose is to make numerical scripts, matrix operations,
+and iterative computations easy to read and easy to write, without giving
+up static typing.
+
+This chapter introduces the language at a high level: the motivation behind
+it, the languages it draws on, the features it offers, and the shape of its
+syntax through a set of sample programs. The precise definition of its
+tokens, and the lexer that recognizes them, follows in
+Chapter~\ref{chp:lexer}.
+
+\section{Motivation}
+\label{sec:motivation}
+
+Languages built for matrix work, such as Octave and MATLAB, make matrices
+and vectors easy to write, but they are dynamically typed
+\cite{octave-manual,matlab-docs}. A program that multiplies two matrices of
+incompatible shapes is accepted as written and fails only when the operation
+runs. Languages such as C and C++ check types before a program runs, but
+treat matrices as library structures or nested arrays, and leave the
+arithmetic to hand written loops \cite{kernighan1988c,stroustrup2013cpp}.
+
+OctaC sits between the two. Matrices and vectors are built in types, and
+their arithmetic is part of the language. This requires the semantic
+analysis phase to track shape alongside type: operations on statically known
+shapes are checked at compile time, while operations on shapes that depend
+on a function parameter, a return value, or a loop built matrix are checked
+at runtime.
+
+\section{Design Influences}
+
+OctaC is a hybrid rather than a subset of a single language. Each part of
+its design comes from the language that handles it best:
+
+\begin{itemize}
+    \item \textbf{Octave and MATLAB} for matrix and vector arithmetic
+    \cite{octave-manual,matlab-docs}.
+    \item \textbf{C and C++} for block structure and statement syntax
+    \cite{kernighan1988c,stroustrup2013cpp}.
+    \item \textbf{Rust and Zig} for explicit sized primitive types
+    \cite{rust-book,zig-reference}.
+    \item \textbf{Python} for range based and \code{for...in} iteration, and
+    for English word logical operators (\code{and}, \code{or}, and so on)
+    \cite{python-reference}.
+\end{itemize}
+
+\section{Features}
+
+\noindent\textbf{Native matrix and vector types.} Matrices and vectors are
+built in types, not library structures. Operators are split between true
+matrix arithmetic (\code{*} for multiplication, \code{'} for transpose) and
+element wise arithmetic (\code{.+}, \code{.*}, and related operators), so
+the operation being performed is visible at the point of use.
+
+Beyond this, OctaC supports:
+
+\begin{itemize}
+    \item Explicit sized variable declarations (\code{i32}, \code{f32},
+    \code{bool}, \code{matrix<i32>}, \code{matrix<f32>}, and related types)
+    \item Block scoping with shadowing in nested blocks
+    \item Scalar, matrix, and element wise operators
+    \item Assignment, including compound forms (\code{+=}, \code{*=})
+    \item Conditionals: \code{if} / \code{else if} / \code{else}, using
+    English word logic (\code{and}, \code{or}, \code{not}, \code{is})
+    \item Loops: range based \code{for}, \code{for...in}, \code{until},
+    \code{do...until}
+    \item Functions with typed parameters and an explicit return type
+    \item Matrix and vector literals and indexing
+\end{itemize}
+
+\section{Sample Programs}
+
+The following programs show the syntax of OctaC in use. Each one is a
+complete program, followed by a walkthrough of the constructs it introduces.
+Later programs build on what earlier ones explain, so they are best read in
+order.
+
+A few things are common to all of them. A program is made of functions, and
+execution starts in the function named \code{main}, which returns an
+\code{i32}. Statements end with a semicolon, and blocks are delimited by
+braces, as in C. A comment starts with \code{//} and runs to the end of the
+line. Output is written with \code{printf}, whose format string follows the
+one in C \cite{kernighan1988c}: \code{\%d} prints an integer and \code{\%.2f}
+prints a floating point number with two digits after the point. OctaC adds
+\code{\%m}, which prints a matrix or a vector.
+
+\subsection{Sum of Squares}
+
+The first program adds up the squares of the numbers from 1 to 5. It shows the
+basic building blocks of the language: a function, a typed variable, a loop,
+and output.
+
+\begin{lstlisting}
+function main() -> i32 {
+    i32 sum = 0;
+    for (i32 i = 1...5) {
+        sum += i * i;
+    }
+    printf("Sum: %d\n", sum);
+    return 0;
+}
+\end{lstlisting}
+
+The header \code{function main() -> i32} declares a function. The empty
+parentheses are its parameter list, and the arrow introduces its return type,
+so the type of the result is always written after the parameters. Inside the
+body, \code{i32 sum = 0;} declares a variable. Every declaration in OctaC
+follows the same order: the type first, then the name, then the initial value.
+
+The loop \code{for (i32 i = 1...5)} is a range loop. It declares its own
+counter, \code{i}, and counts it from 1 up to and including 5, using the range
+operator \code{...}. Each pass adds \code{i * i} to the running total with the
+compound assignment \code{+=}, so the program prints \code{Sum: 55}.
+
+\subsection{Matrix Multiplication}
+
+The second program shows the feature the language is built around, which is
+that matrices are a native type rather than something a library provides.
+
+\begin{lstlisting}
+function main() -> i32 {
+    matrix<i32> A = [[1, 2], [3, 4]];
+    matrix<i32> B = [[5, 6], [7, 8]];
+    matrix<i32> C = A * B;
+    printf("A * B:\n%m\n", C);
+    return 0;
+}
+\end{lstlisting}
+
+The type \code{matrix<i32>} is a matrix whose elements are \code{i32}. A
+matrix literal is written as a list of rows, and each row is itself a list in
+brackets, so \code{[[1, 2], [3, 4]]} is a matrix with two rows and two
+columns. Because \code{A} and \code{B} are initialized with literals at the
+point of declaration, their shapes are known, and the declaration does not
+need to state them.
+
+The expression \code{A * B} is true matrix multiplication. Its value is
+stored in \code{C}, and is the matrix \code{[[19, 22], [43, 50]]}. This
+is different from element wise multiplication, which has an operator of its own.
+The expression \code{A .* B} would multiply the entries position by position,
+and would give the matrix \code{[[5, 12], [21, 32]]}. Because the shapes
+of \code{A} and \code{B} are known, the compiler can check that they are
+compatible for multiplication before the program runs. The format specifier
+\code{\%m} prints the result.
+
+\subsection{Matrix-Vector Product}
+
+The third program combines the two native types by multiplying a $2 \times 3$
+matrix by a vector of 3 elements ($A\mathbf{x}$), which produces a vector of
+2 elements.
+
+\begin{lstlisting}
+function main() -> i32 {
+    matrix<f32> A = [
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0]
+    ];
+    vector<f32> x = [2.0, 1.0, 0.0];
+
+    // Linear transformation Ax -> 2x1 vector
+    vector<f32> y = A * x;
+
+    printf("Result y = Ax: %m\n", y);
+    return 0;
+}
+\end{lstlisting}
+
+Here \code{vector<f32>} is a vector of \code{f32} elements, written as a
+single bracketed list. The matrix literal is spread over several lines, since
+whitespace is not significant, and the comment marks what the multiplication
+computes. The shape of the result follows the same rule as for two matrices:
+it has as many rows as the left operand, and the multiplication is only valid
+when the number of columns of \code{A} matches the number of elements of
+\code{x}. Here both are 3, so \code{y} has 2 elements, namely
+\code{[4.0, 13.0]}.
+
+\subsection{Iterative Convergence}
+
+The fourth program introduces conditions and the \code{until} loop. It halves a
+value until it drops below a threshold, or until a step limit is reached.
+
+\begin{lstlisting}
+function main() -> i32 {
+    f32 val = 100.0;
+    i32 steps = 0;
+    until (val < 1.0 or steps is 20) {
+        val /= 2.0;
+        steps += 1;
+    }
+    printf("Converged in %d steps.", steps);
+    return 0;
+}
+\end{lstlisting}
+
+An \code{until} loop runs as long as its condition is false, and stops as soon
+as the condition becomes true. It is the reverse of the \code{while} loop of
+C: the condition states when to stop rather than when to continue. The
+condition here combines two tests. The comparison \code{val < 1.0} keeps its
+symbolic form, while equality is written with the word \code{is}, and the two
+tests are joined by \code{or}. The loop therefore ends when the value has
+fallen below 1, or after 20 passes, whichever comes first. The second test
+guards against a loop that would otherwise never end.
+
+The body uses the compound assignments \code{/=} and \code{+=}. The value is
+halved seven times before it falls below 1, so the program prints
+\code{Converged in 7 steps.}
+
+\subsection{Input Validation}
+
+The fifth program reads a value from the user and keeps asking until it is
+valid. It shows the \code{do...until} loop, which always runs at least once.
+
+\begin{lstlisting}
+function main() -> i32 {
+    f32 val = 0.0;
+    do {
+        printf("Enter a nonzero val: ");
+        val = input();
+    } until (val is not 0.0);
+    printf("Accepted: %.2f\n", val);
+    return 0;
+}
+\end{lstlisting}
+
+In a \code{do...until} loop the body comes first and the condition is checked
+afterwards, so the prompt is always shown at least once. The function
+\code{input()} reads a value from the user. The condition uses \code{is not},
+the word form of inequality, so the loop repeats until the value entered is not
+zero. The variable is given the initial value \code{0.0} so that it holds a
+defined value before the first read.
+
+\subsection{GPU-Accelerated Matrix Operations}
+
+The last program shows two more parts of the type system: precision and
+statically declared sizes.
+
+\begin{lstlisting}
+function main() -> i32 {
+    // Statically sized matrix
+    matrix<f16, 1024, 1024> A = identity();
+
+    // can auto-infer size
+    matrix<f16> B = A * 2.5;
+
+    matrix<f16, 1024, 1024> C = A * B;
+
+    return 0;
+}
+\end{lstlisting}
+
+The element type \code{f16} is a half precision floating point number. In the
+declaration of \code{A}, the dimensions are written as part of the type, so
+this is a matrix of 1024 by 1024 elements. The matrix \code{B} is declared
+without dimensions, because they can be inferred from the expression that
+initializes it: multiplying \code{A} by the scalar \code{2.5} scales every
+element and keeps the shape.
+
+The last line multiplies two large matrices. Operations on matrices of this
+size are meant to be offloaded to a GPU automatically when one is available,
+without the program containing any GPU specific code.
+
+\section{Looking Ahead}
+
+The programs above show the surface of OctaC: typed declarations, native
+matrices and vectors, two families of arithmetic operators, English word
+conditions, and four kinds of loops. What they leave open is how a program
+like these becomes something a machine can run. That is the job of the
+compiler, which works in phases \cite{aho2006compilers}.
+
+The first phase, lexical analysis, reads the program as a stream of
+characters and splits it into tokens such as \code{for}, \code{i32}, \code{1},
+and \code{...}. Chapter~\ref{chp:lexer} defines these tokens precisely and
+shows how the lexer recognizes them. The later phases give the tokens a
+structure and a meaning, and they are where the shape checking described in
+Section~\ref{sec:motivation} takes place. They will be added to this book as
+they are built.

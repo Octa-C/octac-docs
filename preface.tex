@@ -1,23 +1,23 @@
 \chapter*{Preface}
 
 OctaC is a statically typed, C-structured language for numerical and
-matrix computation. Dynamically typed languages like Octave let a
-programmer multiply two matrices of incompatible shapes without complaint
-until the operation actually runs. A statically typed language can catch
-that mistake before a single instruction executes, but only if the
-compiler is taught to treat shape, not just type, as a property of a value
-that can be checked at compile time. OctaC brings that discipline to a
-C-structured surface syntax, with scalar types (\code{i32}, \code{i64},
-\code{f32}, \code{f64}, \code{bool}) alongside their matrix and vector
-counterparts (\code{i32mat}, \code{f32mat}, \code{i32vec}, \code{f32vec},
-\code{boolmat}).
+matrix computation. Dynamically typed languages like Octave
+\cite{octave-manual} let a programmer multiply two matrices of incompatible
+shapes without complaint until the operation actually runs. A statically
+typed language can catch that mistake before a single instruction executes,
+but only if the compiler is taught to treat shape, not just type, as a
+property of a value that can be checked at compile time. OctaC brings that
+discipline to a C-structured surface syntax, with scalar types (\code{i16},
+\code{i32}, \code{i64}, \code{f16}, \code{f32}, \code{f64}, \code{bool})
+alongside matrix and vector types parameterized by their element type
+(\code{matrix<i32>}, \code{vector<f32>}).
 
-This is a living book. It begins with the specification of OctaC as it
-stands today, and is meant to grow chapter by chapter as the compiler is
-built over time: the formal grammar, the lexer, the parser, the
-semantic analysis pass, and code generation will each be added as their own
-chapter once they exist. Chapter~1 is the specification as it currently
-stands.
+This is a living book. It begins with an introduction to OctaC and its
+lexical analysis, and is meant to grow chapter by chapter as the compiler is
+built over time: the formal grammar, the parser, the semantic analysis pass,
+and code generation will each be added as their own chapter once they exist.
+Chapter~1 introduces the language as it currently stands, and Chapter~2
+covers its lexer.
 
 This book prioritizes clarity and feasibility over completeness. Where we
 simplify (omit a feature, restrict a rule, choose one semantic

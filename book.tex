@@ -7,6 +7,7 @@
 \usepackage{url}
 \usepackage{imakeidx}
 \usepackage{booktabs}
+\usepackage{array}
 \usepackage{url}
 \usepackage{etoolbox}  % for showidx
 \usepackage{fullpage}
@@ -18,8 +19,13 @@
 \usetikzlibrary{shapes,arrows,positioning}
 
 \usepackage{hyperref}  % should be last
+\definecolor{linkblue}{rgb}{0.05,0.25,0.65}
 \hypersetup{
-  pdfborder={0 0 0}
+  pdfborder={0 0 0},
+  colorlinks=true,
+  linkcolor=linkblue,
+  citecolor=linkblue,
+  urlcolor=linkblue
 }
 
 \definecolor{codegreen}{rgb}{0,0.6,0}
@@ -35,19 +41,37 @@
     xleftmargin=0.5cm
 }
 \lstset{style=mystyle}
+\lstset{captionpos=b}
 
 % Syntax highlighting for OctaC source: keywords (magenta, bold),
 % line comments (green), no background shading.
 \lstset{
     morekeywords={function, return, if, else, for, in, until, do, and, or,
-                  not, is, true, false, i32, i64, f32, f64, bool, i32mat,
-                  f32mat, i32vec, f32vec, boolmat},
+                  not, is, true, false, i32, i64, f32, f64, bool, matrix,
+                  vector, elseif, caseof, case, i16, default, break,
+                  continue, f16, string},
     morecomment=[l]{//},
     morestring=[b]"
 }
 
+% Token name in a table cell: monospace, allowed to break after underscores.
+\makeatletter
+\def\tok@split#1_#2\@nil{#1\if\relax\detokenize{#2}\relax\else\_\allowbreak\tok@split#2\@nil\fi}
+\newcommand{\tok}[1]{\texttt{\tok@split#1_\@nil}}
+\makeatother
+
+% Plain style for pseudocode listings (no keyword highlighting).
+\lstdefinestyle{pseudocode}{
+    keywordstyle=\relax,
+    stringstyle=\relax
+}
+
 % One space after periods
 \frenchspacing
+
+% Do not stretch vertical space to fill pages, so unbreakable blocks
+% (tables, listings) never leave large gaps around them.
+\raggedbottom
 
 \hypersetup{pdfauthor={Syed Taha, Muhammad Usman},
             pdftitle={OctaC: A Language Specification},}
@@ -111,7 +135,7 @@
 
 \maketitle
 
-\tableofcontents
+{\hypersetup{linkcolor=black}\tableofcontents}
 
 \input{acks}
 \addcontentsline{toc}{chapter}{Foreword and acknowledgments}
@@ -121,11 +145,11 @@
 
 %  Part 1: Language Design
 \part{Language Design}
-% \input{chp01-specification}
+\input{p1-chp01-introduction}
+\input{p1-chp02-lexer}
 
 % Future chapters are added here as the language and compiler develop.
-% \input{chp02-grammar}
-% \input{chp03-lexer}
+% \input{chp03-grammar}
 % \input{chp04-parser}
 % \input{chp05-semantic-analysis}
 % \input{chp06-code-generation}

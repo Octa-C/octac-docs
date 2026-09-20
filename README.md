@@ -6,17 +6,17 @@ LaTeX source for a technical book documenting the design of OctaC, a statically 
 
 ## Overview
 
-The book documents the OctaC language specification and the compiler built to implement it, growing chapter by chapter as the formal grammar, lexer, parser, semantic analysis, and code generation are added.
+The book documents the OctaC language specification and the compiler built to implement it, growing chapter by chapter as the formal grammar, parser, semantic analysis, and code generation are added.
 
 The text is currently organized into one part:
 
-- Part I: Language Design: the OctaC specification, with grammar, lexer, parser, semantic analysis, and code generation chapters to follow
+- Part I: Language Design: the OctaC introduction and lexical analysis, with grammar, parser, semantic analysis, and code generation chapters to follow
 
 ---
 
 ## Repository layout
 
-- `*.tex`: chapter source files (e.g. `chp01-specification.tex`)
+- `*.tex`: chapter source files (e.g. `p1-chp01-introduction.tex`)
 - `build/`: intermediate files produced during compilation
 - `Makefile`: build rules (produces `book.pdf`)
 
